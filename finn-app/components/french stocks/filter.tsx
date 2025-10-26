@@ -18,38 +18,38 @@ const Indicators = [
   },
   {
     label: "PER",
-    description: "Indique combien les investisseurs paint pour 1 € de bénéfice",
+    description: "Indique combien les investisseurs paint pour 1 € de bénéfice.",
   },
   {
     label: "PB",
-    description: "Compare le prix au patrimoine net de l'entreprise",
+    description: "Compare le prix au patrimoine net de l'entreprise.",
   },
   {
     label: "PEG",
     description:
-      "Il permet donc d'évaluer si une action est chère ou bon marché en fonction de son ruthme de croissance",
+      "Il permet donc d'évaluer si une action est chère ou bon marché en fonction de son ruthme de croissance.",
   },
   {
     label: "Debt/equity",
-    description: "mesures la capacité d'endettement de l'entreprise",
+    description: "mesures la capacité d'endettement de l'entreprise.",
   },
   {
     label: "Debt/ebitda",
     description:
-      "mesure en combien d'année l'entreprise pet rembourser ses dettes",
+      "mesure en combien d'année l'entreprise pet rembourser ses dettes.",
   },
   {
     label: "Cash Ratio",
     description:
-      "mesure la capacite de la boite a avoir du cash rapidement, important pour eviter la faillite",
+      "mesure la capacite de la boite a avoir du cash rapidement, important pour eviter la faillite.",
   },
   {
     label: "Marge d'exploitation",
-    description: "Elle reflète la rentabilité réelle du cœur de métie",
+    description: "Elle reflète la rentabilité réelle du cœur de métie.",
   },
   {
     label: "Marge nette",
-    description: "Elle reflète la rentabilité réelle du cœur de métier",
+    description: "Elle montre combien de valeur l'entreprise crée réellement pour ses actionnaires.",
   },
 ];
 
