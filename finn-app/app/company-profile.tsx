@@ -146,7 +146,7 @@ export default function CompanyProfile() {
                 backgroundGradientFrom: "#1A1A1A",
                 backgroundGradientTo: "#1A1A1A",
                 decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`,
+                color: (opacity = 1) => `#F5E189`,
                 labelColor: (opacity = 1) => `rgba(169, 169, 169, ${opacity})`,
                 style: {
                   borderRadius: 16,
@@ -154,8 +154,8 @@ export default function CompanyProfile() {
                 propsForDots: {
                   r: "6",
                   strokeWidth: "2",
-                  stroke: "#8B5CF6",
-                  fill: "#8B5CF6",
+                  stroke: "#4CD964",
+                  fill: "#4CD964",
                 },
                 propsForBackgroundLines: {
                   strokeDasharray: "5,5",
