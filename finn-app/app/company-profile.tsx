@@ -146,7 +146,7 @@ export default function CompanyProfile() {
                 backgroundGradientFrom: "#1A1A1A",
                 backgroundGradientTo: "#1A1A1A",
                 decimalPlaces: 0,
-                color: (opacity = 1) => `#F5E189`,
+                color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`,
                 labelColor: (opacity = 1) => `rgba(169, 169, 169, ${opacity})`,
                 style: {
                   borderRadius: 16,
@@ -154,8 +154,8 @@ export default function CompanyProfile() {
                 propsForDots: {
                   r: "6",
                   strokeWidth: "2",
-                  stroke: "#4CD964",
-                  fill: "#4CD964",
+                  stroke: "#8B5CF6",
+                  fill: "#8B5CF6",
                 },
                 propsForBackgroundLines: {
                   strokeDasharray: "5,5",
@@ -174,7 +174,18 @@ export default function CompanyProfile() {
 
         {/* Key Stats */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Key Stats</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Key Stats</Text>
+            <TouchableOpacity onPress={() => router.push({
+              pathname: "/financial-data",
+              params: {
+                symbol: companyData.symbol,
+                name: companyData.name,
+              }
+            } as any)}>
+              <Text style={styles.viewAll}>View all</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.statsContainer}>
             <View style={styles.statsRow}>
               <StatCard label="Market Cap" value={companyData.marketCap} />
@@ -348,6 +359,12 @@ const styles = StyleSheet.create({
   section: {
     paddingHorizontal: 20,
     marginBottom: 30,
+  },
+  sectionHeader:{
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
