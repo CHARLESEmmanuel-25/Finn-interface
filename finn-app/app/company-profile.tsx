@@ -23,25 +23,33 @@ export default function CompanyProfile() {
 
   // Récupérer les données passées en paramètres
   const companyData = {
-    symbol: params.symbol as string || "AAPL",
-    name: params.name as string || "Apple Inc.",
-    price: params.price as string || "123.45",
-    change: params.change as string || "+2.5",
-    logo: params.logo as string || "https://logo.clearbit.com/apple.com",
-    location: params.location as string || "Cupertino, CA, USA",
-    website: params.website as string || "www.apple.com",
-    about: params.about as string || "No description available.",
-    marketCap: params.marketCap as string || "$0.0T",
-    shares: params.shares as string || "0.0B",
-    revenue: params.revenue as string || "$0.0B",
-    eps: params.eps as string || "$0.00",
-    peRatio: params.peRatio as string || "0.0",
-    dividend: params.dividend as string || "0.00%",
+    symbol: (params.symbol as string) || "AAPL",
+    name: (params.name as string) || "Apple Inc.",
+    price: (params.price as string) || "123.45",
+    change: (params.change as string) || "+2.5",
+    logo: (params.logo as string) || "https://logo.clearbit.com/apple.com",
+    location: (params.location as string) || "Cupertino, CA, USA",
+    website: (params.website as string) || "www.apple.com",
+    about: (params.about as string) || "No description available.",
+    marketCap: (params.marketCap as string) || "$0.0T",
+    shares: (params.shares as string) || "0.0B",
+    revenue: (params.revenue as string) || "$0.0B",
+    eps: (params.eps as string) || "$0.00",
+    peRatio: (params.peRatio as string) || "0.0",
+    dividend: (params.dividend as string) || "0.00%",
   };
 
   // Données pour le graphique
   const chartData = {
-    labels: ["Jul 12", "Jul 13", "Jul 14", "Jul 15", "Jul 16", "Jul 17", "Jul 18"],
+    labels: [
+      "Jul 12",
+      "Jul 13",
+      "Jul 14",
+      "Jul 15",
+      "Jul 16",
+      "Jul 17",
+      "Jul 18",
+    ],
     datasets: [
       {
         data: [50, 200, 150, 350, 600, 400, 550],
@@ -62,16 +70,32 @@ export default function CompanyProfile() {
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Company Profile</Text>
-        <TouchableOpacity
-          style={styles.bookmarkButton}
-          onPress={() => setIsBookmarked(!isBookmarked)}
-        >
-          <Ionicons
-            name={isBookmarked ? "bookmark" : "bookmark-outline"}
-            size={24}
-            color="#FFF"
-          />
-        </TouchableOpacity>
+        <View style={{
+          display: "flex",
+          flexDirection:"row",
+          gap: 4
+        }}>
+          <TouchableOpacity
+            style={styles.bookmarkButton}
+            onPress={() => setIsBookmarked(!isBookmarked)}
+          >
+            <Ionicons
+              name={isBookmarked ? "bookmark" : "bookmark-outline"}
+              size={24}
+              color="#FFF"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bookmarkButton}
+            onPress={() => setIsBookmarked(!isBookmarked)}
+          >
+            <Ionicons
+              name={isBookmarked ? "bag-remove" : "bag-add"}
+              size={24}
+              color="#FFF"
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -81,25 +105,38 @@ export default function CompanyProfile() {
         {/* Company Info */}
         <View style={styles.companyHeader}>
           <View style={styles.logoContainer}>
-            <Image
-              source={{ uri: companyData.logo }}
-              style={styles.logo}
-            />
+            <Image source={{ uri: companyData.logo }} style={styles.logo} />
           </View>
           <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>{companyData.name} ({companyData.symbol})</Text>
+            <Text style={styles.companyName}>
+              {companyData.name} ({companyData.symbol})
+            </Text>
             <View style={styles.priceRow}>
               <Text style={styles.price}>${companyData.price}</Text>
-              <Ionicons 
-                name={parseFloat(companyData.change) >= 0 ? "arrow-up" : "arrow-down"} 
-                size={16} 
-                color={parseFloat(companyData.change) >= 0 ? "#4CD964" : "#FF3B30"} 
+              <Ionicons
+                name={
+                  parseFloat(companyData.change) >= 0
+                    ? "arrow-up"
+                    : "arrow-down"
+                }
+                size={16}
+                color={
+                  parseFloat(companyData.change) >= 0 ? "#4CD964" : "#FF3B30"
+                }
               />
-              <Text style={[
-                styles.change, 
-                { color: parseFloat(companyData.change) >= 0 ? "#4CD964" : "#FF3B30" }
-              ]}>
-                {parseFloat(companyData.change) >= 0 ? "+" : ""}{companyData.change}%
+              <Text
+                style={[
+                  styles.change,
+                  {
+                    color:
+                      parseFloat(companyData.change) >= 0
+                        ? "#4CD964"
+                        : "#FF3B30",
+                  },
+                ]}
+              >
+                {parseFloat(companyData.change) >= 0 ? "+" : ""}
+                {companyData.change}%
               </Text>
             </View>
           </View>
@@ -176,13 +213,17 @@ export default function CompanyProfile() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Key Stats</Text>
-            <TouchableOpacity onPress={() => router.push({
-              pathname: "/financial-data",
-              params: {
-                symbol: companyData.symbol,
-                name: companyData.name,
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/financial-data",
+                  params: {
+                    symbol: companyData.symbol,
+                    name: companyData.name,
+                  },
+                } as any)
               }
-            } as any)}>
+            >
               <Text style={styles.viewAll}>View all</Text>
             </TouchableOpacity>
           </View>
@@ -360,7 +401,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 30,
   },
-  sectionHeader:{
+  sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
