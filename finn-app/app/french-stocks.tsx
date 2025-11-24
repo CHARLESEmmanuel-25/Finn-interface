@@ -12,11 +12,11 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type FilterCategory = "populaire" | "cours" | "valorisation" | "analyses" | "finances" | "dividendes" | "croissance" | "rendements" | "risque" | "technique" | "efficience" | "profil";
+type FilterCategory = "Larges Caps" | "Small caps" | "Top Gagnantes" | "Plus cheres" | "Plus performnats" | "Plus Active" | "Plus valotiles" | "Penny stock" | "Plus bas " | "Plus hauts";
 
 export default function FrenchStocks() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<FilterCategory>("dividendes");
+  const [selectedCategory, setSelectedCategory] = useState<FilterCategory>("Larges Caps");
   const [showFilters, setShowFilters] = useState(false);
 
   // Filtres pour chaque catégorie
@@ -34,18 +34,16 @@ export default function FrenchStocks() {
   });
 
   const categories = [
-    { key: "populaire", label: "Populaire" },
-    { key: "cours", label: "Cours" },
-    { key: "valorisation", label: "Valorisation" },
-    { key: "analyses", label: "Analyses" },
-    { key: "finances", label: "Finances" },
-    { key: "dividendes", label: "Dividendes" },
-    { key: "croissance", label: "Croissance" },
-    { key: "rendements", label: "Rendements" },
-    { key: "risque", label: "Risque" },
-    { key: "technique", label: "Technique" },
-    { key: "efficience", label: "Efficience" },
-    { key: "profil", label: "Profil" },
+    { key: "Larges Caps", label: "Larges Caps" },
+    { key: "Small caps", label: "Small caps" },
+    { key: "Top Gagnantes", label: "Top Gagnantes" },
+    { key: "Plus cheres", label: "Plus cheres" },
+    { key: "Plus performnats", label: "Plus performnats" },
+    { key: "Plus Active", label: "Plus Active" },
+    { key: "Plus valotiles", label: "Plus valotiles" },
+    { key: "Penny stock", label: "Penny stock" },
+    { key: "Plus bas", label: "Plus bas" },
+    { key: "Plus hauts", label: "Plus hauts" },
   ];
 
   // Options pour les filtres basées sur les ratios
@@ -680,8 +678,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    padding: 8,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#1A1A1A",
     borderRadius: 20,
     borderWidth: 1,
