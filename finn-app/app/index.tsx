@@ -1,23 +1,68 @@
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Text,
-  View,
-  StyleSheet,
-  TouchableOpacity,
   Alert,
-  ScrollView,
-  TextInput,
-  StatusBar,
   Image,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getSectorList, getStocks, getWonShares } from '../services/apiService';
+import { Sector, Stock } from "../services/type";
 
 // const { width } = Dimensions.get('window'); // Utilisé dans les styles
 
 export default function Index() {
+
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [sectors, setSectors] = useState<Sector[]>([]);
+  const [winningShare, setWinningShare] = useState<Stock[]>([]);
+
+  const sectorsIcon = [
+  { icon: <MaterialCommunityIcons name="laptop" size={24} color="black" /> },
+  { icon: <MaterialCommunityIcons name="bank" size={24} color="black" /> },
+];
+
+  const router = useRouter();
+
+  
+
+  useEffect(() => {
+    const fetchStocks = async () => {
+      try {
+        const data = await getStocks();
+        const winning = await getWonShares();
+        setStocks(data);
+
+        setWinningShare(winning);
+
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchStocks();
+  }, []);
+
+  // Secteurs
+  useEffect(() => {
+    const fetchSectors = async () => {
+      try {
+        const data = await getSectorList();
+        setSectors(data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchSectors();
+  }, []);
+
   const [userData, setUserData] = useState<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -172,184 +217,114 @@ export default function Index() {
         </View>
 
         {/* Section Grandes capitalisation (Large Cap) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Grandes capitalisation</Text>
-          <View style={styles.largeCapGrid}>
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Grandes capitalisation</Text>
+        <View style={styles.largeCapGrid}>
+          {stocks.map((stock) => (
             <LargeCapCard
-              symbol="AAPL"
-              name="Apple Inc."
-              price="$191.12"
-              logo="https://logo.clearbit.com/apple.com"
+              key={stock._id}
+              symbol={stock.symbol}
+              name={stock.symbol}
+              price={`$${stock.currentPrice.toFixed(2)}`}
+              logo={`https://img.logo.dev/ticker/${stock.symbol}?token=pk_OZcH4BM4Sq2iZPtbnm_Ziw`}
               onPress={() =>
                 router.push({
                   pathname: "/company-profile",
                   params: {
-                    symbol: "AAPL",
-                    name: "Apple Inc.",
-                    price: "191.12",
-                    change: "+2.5",
-                    logo: "https://logo.clearbit.com/apple.com",
-                    location: "Cupertino, CA, USA",
-                    website: "www.apple.com",
-                    about:
-                      "Apple Inc. is a global tech company that designs and sells consumer electronics, software, and online services. Known for its iPhones, Macs, and innovation-driven products, Apple serves millions of users worldwide.",
-                    marketCap: "$2.6T",
-                    shares: "15.2B",
-                    revenue: "$394.3B",
-                    eps: "$6.05",
-                    peRatio: "28.7",
-                    dividend: "0.55%",
+                    symbol: stock.symbol,
+                    change: stock.percentVar,
+                    name: stock.symbol,
+                    logo:`https://img.logo.dev/ticker/${stock.symbol}?token=pk_OZcH4BM4Sq2iZPtbnm_Ziw`,
+                    price: stock.currentPrice,
+                    marketCap: stock.marketCap,
+                    country: stock.country,
+                    sector: stock.sector,
+                    sharesStats: stock.sharesStats,
+                    per : stock.PER,
+                    description : stock.summary,
+                    website : stock.website,
+                    dividendYield: stock.dividendYield
+
                   },
                 } as any)
               }
             />
-            <LargeCapCard
-              symbol="GOOGL"
-              name="Google"
-              price="$142.50"
-              logo="https://logo.clearbit.com/google.com"
-              onPress={() =>
-                router.push({
-                  pathname: "/company-profile",
-                  params: {
-                    symbol: "GOOGL",
-                    name: "Alphabet Inc. (Google)",
-                    price: "142.50",
-                    change: "+1.8",
-                    logo: "https://logo.clearbit.com/google.com",
-                    location: "Mountain View, CA, USA",
-                    website: "www.google.com",
-                    about:
-                      "Alphabet Inc. is the parent company of Google and several other subsidiaries. It specializes in internet services, advertising, cloud computing, and artificial intelligence technologies.",
-                    marketCap: "$1.8T",
-                    shares: "12.8B",
-                    revenue: "$307.4B",
-                    eps: "$5.80",
-                    peRatio: "24.6",
-                    dividend: "0.00%",
-                  },
-                } as any)
-              }
-            />
-          </View>
+          ))}
         </View>
+      </View>
+  
 
         {/* Section Action gagnantes (Winning Stocks) */}
 
-        <View style={styles.section}>
+          <View style={styles.section}>
           <Text style={styles.sectionTitle}>Action gagnantes</Text>
           <View style={styles.winningStocksList}>
+          {winningShare.map((stock) => (
             <WinningStockCard
-              symbol="TSLA"
-              name="Tesla Inc."
-              price="$245.67"
-              change="+5.2%"
-              logo="https://logo.clearbit.com/tesla.com"
+             key={stock._id}
+              symbol= {stock.symbol}
+              name= {stock.shortName}
+              price= {stock.currentPrice}
+              change={stock.percentVar}
+              logo={`https://img.logo.dev/ticker/${stock.symbol}?token=pk_OZcH4BM4Sq2iZPtbnm_Ziw`}
               onPress={() =>
                 router.push({
                   pathname: "/company-profile",
                   params: {
-                    symbol: "TSLA",
-                    name: "Tesla Inc.",
-                    price: "245.67",
-                    change: "+5.2",
-                    logo: "https://logo.clearbit.com/tesla.com",
-                    location: "Austin, TX, USA",
-                    website: "www.tesla.com",
-                    about:
-                      "Tesla Inc. is an American electric vehicle and clean energy company. Known for its innovative electric cars, battery energy storage, and solar panel manufacturing.",
-                    marketCap: "$780.5B",
-                    shares: "3.2B",
-                    revenue: "$96.8B",
-                    eps: "$4.07",
-                    peRatio: "60.3",
-                    dividend: "0.00%",
+                    symbol: stock.symbol,
+                    change: stock.percentVar,
+                    name: stock.symbol,
+                    logo:`https://img.logo.dev/ticker/${stock.symbol}?token=pk_OZcH4BM4Sq2iZPtbnm_Ziw`,
+                    price: stock.currentPrice,
+                    marketCap: stock.marketCap,
+                    country: stock.country,
+                    sector: stock.sector,
+                    sharesStats: stock.sharesStats,
+                    per : stock.PER,
+                    description : stock.summary,
+                    website : stock.website,
+                    dividendYield: stock.dividendYield
                   },
                 } as any)
               }
             />
-            <WinningStockCard
-              symbol="NVDA"
-              name="NVIDIA Corp."
-              price="$485.20"
-              logo= "https://logo.clearbit.com/nvidia.com"
-              change="+3.8%"
-              onPress={() =>
-                router.push({
-                  pathname: "/company-profile",
-                  params: {
-                    symbol: "NVDA",
-                    name: "NVIDIA Corporation",
-                    price: "485.20",
-                    change: "+3.8",
-                    logo: "https://logo.clearbit.com/nvidia.com",
-                    location: "Santa Clara, CA, USA",
-                    website: "www.nvidia.com",
-                    about:
-                      "NVIDIA Corporation is a leading technology company specializing in graphics processing units (GPUs), AI computing, and gaming technologies.",
-                    marketCap: "$1.2T",
-                    shares: "2.5B",
-                    revenue: "$60.9B",
-                    eps: "$11.93",
-                    peRatio: "40.7",
-                    dividend: "0.03%",
-                  },
-                } as any)
-              }
-            />
-            <WinningStockCard
-              symbol="AMD"
-              name="AMD"
-              price="$128.45"
-              logo= "https://logo.clearbit.com/amd.com"
-              change="+2.9%"
-              onPress={() =>
-                router.push({
-                  pathname: "/company-profile",
-                  params: {
-                    symbol: "AMD",
-                    name: "Advanced Micro Devices",
-                    price: "128.45",
-                    change: "+2.9",
-                    logo: "https://logo.clearbit.com/amd.com",
-                    location: "Santa Clara, CA, USA",
-                    website: "www.amd.com",
-                    about:
-                      "Advanced Micro Devices (AMD) is a semiconductor company that develops computer processors and related technologies for business and consumer markets.",
-                    marketCap: "$207.8B",
-                    shares: "1.6B",
-                    revenue: "$22.7B",
-                    eps: "$3.06",
-                    peRatio: "42.0",
-                    dividend: "0.00%",
-                  },
-                } as any)
-              }
-            />
-          </View>
+          ))}
+        </View>
+      </View>
+
+
+    {/* Section Secteurs */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Secteurs</Text>
+          <TouchableOpacity
+            onPress={() => router.push("/market-sectors" as any)}
+          >
+            <Text style={styles.viewMoreText}>voir plus</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Section Secteurs */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Secteurs</Text>
-            <TouchableOpacity
-              onPress={() => router.push("/market-sectors" as any)}
-            >
-              <Text style={styles.viewMoreText}>voir plus</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.sectorsScroll}
-          >
-            <SectorCard name="Technology" icon="💻" />
-            <SectorCard name="Finance" icon="🏦" />
-            <SectorCard name="Healthcare" icon="🏥" />
-            <SectorCard name="Energy" icon="⚡" />
-          </ScrollView>
-        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.sectorsScroll}
+        >
+          {sectors.map((sector, index) => (
+            <SectorCard
+              key={index}
+              name={sector.name}
+              icon= {sector.logo}
+              onPress={() =>
+                router.push({
+                  pathname: "/sector-detail",
+                  params: { sectorName: sector.name },
+                } as any)
+              }
+            />
+          ))}
+        </ScrollView>
+      </View>
+
 
         {/* Section Evenement à venir (Upcoming Events) */}
         <View style={styles.section}>

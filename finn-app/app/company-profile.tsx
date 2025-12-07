@@ -21,23 +21,45 @@ export default function CompanyProfile() {
   const [selectedPeriod, setSelectedPeriod] = useState("Last Week");
   const [isBookmarked, setIsBookmarked] = useState(false);
 
-  // Récupérer les données passées en paramètres
-  const companyData = {
-    symbol: params.symbol as string || "AAPL",
-    name: params.name as string || "Apple Inc.",
-    price: params.price as string || "123.45",
-    change: params.change as string || "+2.5",
-    logo: params.logo as string || "https://logo.clearbit.com/apple.com",
-    location: params.location as string || "Cupertino, CA, USA",
-    website: params.website as string || "www.apple.com",
-    about: params.about as string || "No description available.",
-    marketCap: params.marketCap as string || "$0.0T",
-    shares: params.shares as string || "0.0B",
-    revenue: params.revenue as string || "$0.0B",
-    eps: params.eps as string || "$0.00",
-    peRatio: params.peRatio as string || "0.0",
-    dividend: params.dividend as string || "0.00%",
+  //limiter la description
+  const truncate = (text: string, maxLength: number) => {
+    if (!text) return "";
+    return text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
   };
+
+  //format number
+  const formatNumber = (value: any, decimals = 2): string => {
+  const num = parseFloat(value);
+     if (isNaN(num)) return "0";
+    return num.toFixed(decimals);
+  };
+
+
+  // Récupérer les données passées en paramètres
+// Récupérer les données passées en paramètres
+const companyData = {
+  symbol: (params.symbol as string) || "AAPL",
+  name: (params.name as string) || "Apple Inc.",
+  price: (params.price as string) || "123.45",
+  change: (params.change as string) || "0",
+  eps: (params.eps as string) || "210",
+  revenue: (params.revenue as string) || "2000",
+
+  logo: (params.logo as string) || "https://logo.clearbit.com/apple.com",
+  website: (params.website as string) || "www.apple.com",
+
+  // ✔ Données envoyées depuis router.push
+  marketCap: (params.marketCap as string) || "0",
+  country: (params.country as string) || "Unknown",
+  sector: (params.sector as string) || "Unknown",
+
+  sharesStats: (params.sharesStats as string) || "0",
+  per: formatNumber(params.per, 2) || "0",
+
+  description: truncate(params.description as string, 140) || "No description available.",
+  dividendYield: (params.dividendYield as string) || "0",
+};
+
 
   // Données pour le graphique
   const chartData = {
@@ -109,7 +131,7 @@ export default function CompanyProfile() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About:</Text>
           <Text style={styles.aboutText}>
-            {companyData.about}{" "}
+            {companyData.description}{" "}
             <Text style={styles.readMore}>Read More...</Text>
           </Text>
 
@@ -117,7 +139,7 @@ export default function CompanyProfile() {
           <View style={styles.infoRow}>
             <View style={styles.infoItem}>
               <Ionicons name="location-outline" size={18} color="#A9A9A9" />
-              <Text style={styles.infoText}>{companyData.location}</Text>
+              <Text style={styles.infoText}>{companyData.country}</Text>
             </View>
             <View style={styles.infoItem}>
               <Ionicons name="globe-outline" size={18} color="#A9A9A9" />
@@ -189,13 +211,13 @@ export default function CompanyProfile() {
           <View style={styles.statsContainer}>
             <View style={styles.statsRow}>
               <StatCard label="Market Cap" value={companyData.marketCap} />
-              <StatCard label="Shares Stats" value={companyData.shares} />
+              <StatCard label="Shares Stats" value={companyData.sharesStats} />
               <StatCard label="Annual Revenue" value={companyData.revenue} />
             </View>
             <View style={styles.statsRow}>
               <StatCard label="EPS (TTM)" value={companyData.eps} />
-              <StatCard label="P/E Ratio" value={companyData.peRatio} />
-              <StatCard label="Dividend Yield" value={companyData.dividend} />
+              <StatCard label="P/E Ratio" value={companyData.per} />
+              <StatCard label="Dividend Yield" value={companyData.dividendYield} />
             </View>
           </View>
         </View>
