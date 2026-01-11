@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Text,
   View,
@@ -8,11 +8,13 @@ import {
   StatusBar,
   Image,
   Dimensions,
+  Alert,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LineChart } from "react-native-chart-kit";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 
@@ -20,6 +22,7 @@ export default function CompanyProfile() {
   const params = useLocalSearchParams();
   const [selectedPeriod, setSelectedPeriod] = useState("Last Week");
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isInPortfolio, setIsInPortfolio] = useState(false);
 
   // Récupérer les données passées en paramètres
   const companyData = {
@@ -37,6 +40,68 @@ export default function CompanyProfile() {
     eps: (params.eps as string) || "$0.00",
     peRatio: (params.peRatio as string) || "0.0",
     dividend: (params.dividend as string) || "0.00%",
+  };
+
+  // Vérifier si l'entreprise est déjà dans le portfolio
+  useEffect(() => {
+    checkPortfolioStatus();
+  }, [companyData.symbol]);
+
+  const checkPortfolioStatus = async () => {
+    try {
+      const portfolioData = await AsyncStorage.getItem("portfolio");
+      if (portfolioData) {
+        const portfolio = JSON.parse(portfolioData);
+        const exists = portfolio.some(
+          (item: any) => item.symbol === companyData.symbol
+        );
+        setIsInPortfolio(exists);
+      }
+    } catch (error) {
+      console.error("Erreur lors de la vérification du portfolio:", error);
+    }
+  };
+
+  const handleTogglePortfolio = async () => {
+    try {
+      const portfolioData = await AsyncStorage.getItem("portfolio");
+      let portfolio = portfolioData ? JSON.parse(portfolioData) : [];
+
+      if (isInPortfolio) {
+        // Retirer du portfolio
+        portfolio = portfolio.filter(
+          (item: any) => item.symbol !== companyData.symbol
+        );
+        setIsInPortfolio(false);
+        Alert.alert("Succès", `${companyData.symbol} retiré du portfolio`);
+      } else {
+        // Ajouter au portfolio
+        const companyToAdd = {
+          symbol: companyData.symbol,
+          name: companyData.name,
+          price: companyData.price,
+          change: companyData.change,
+          logo: companyData.logo,
+          location: companyData.location,
+          website: companyData.website,
+          about: companyData.about,
+          marketCap: companyData.marketCap,
+          shares: companyData.shares,
+          revenue: companyData.revenue,
+          eps: companyData.eps,
+          peRatio: companyData.peRatio,
+          dividend: companyData.dividend,
+        };
+        portfolio.push(companyToAdd);
+        setIsInPortfolio(true);
+        Alert.alert("Succès", `${companyData.symbol} ajouté au portfolio`);
+      }
+
+      await AsyncStorage.setItem("portfolio", JSON.stringify(portfolio));
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du portfolio:", error);
+      Alert.alert("Erreur", "Impossible de mettre à jour le portfolio");
+    }
   };
 
   // Données pour le graphique
@@ -87,12 +152,12 @@ export default function CompanyProfile() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.bookmarkButton}
-            onPress={() => setIsBookmarked(!isBookmarked)}
+            onPress={handleTogglePortfolio}
           >
             <Ionicons
-              name={isBookmarked ? "bag-remove" : "bag-add"}
+              name={isInPortfolio ? "bag-remove" : "bag-add"}
               size={24}
-              color="#FFF"
+              color={isInPortfolio ? "#8B5CF6" : "#FFF"}
             />
           </TouchableOpacity>
         </View>
