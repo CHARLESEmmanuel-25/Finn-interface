@@ -1,0 +1,474 @@
+{
+  "sectors": {
+    "topSectors": [
+      {
+        "name": "Finance",
+        "icon": "🏦",
+        "color": "#4CD964"
+      },
+      {
+        "name": "Technology",
+        "icon": "💻",
+        "color": "#8B5CF6"
+      },
+      {
+        "name": "Utilities",
+        "icon": "⚡",
+        "color": "#FFCC00"
+      },
+      {
+        "name": "Healthcare",
+        "icon": "🏥",
+        "color": "#FF3B30"
+      },
+      {
+        "name": "Energy",
+        "icon": "⛽",
+        "color": "#FF9500"
+      },
+      {
+        "name": "Consumer",
+        "icon": "🛒",
+        "color": "#5AC8FA"
+      }
+    ],
+    "allSectors": [
+      {
+        "name": "Business",
+        "icon": "💼",
+        "color": "#8B5CF6"
+      },
+      {
+        "name": "Energy",
+        "icon": "⚡",
+        "color": "#FF9500"
+      },
+      {
+        "name": "Healthcare",
+        "icon": "🏥",
+        "color": "#FF3B30"
+      },
+      {
+        "name": "Finance",
+        "icon": "🏦",
+        "color": "#4CD964"
+      },
+      {
+        "name": "Technology",
+        "icon": "💻",
+        "color": "#8B5CF6"
+      },
+      {
+        "name": "Consumer",
+        "icon": "🛒",
+        "color": "#5AC8FA"
+      },
+      {
+        "name": "Utilities",
+        "icon": "⚡",
+        "color": "#FFCC00"
+      },
+      {
+        "name": "Materials",
+        "icon": "🏭",
+        "color": "#FF6B6B"
+      },
+      {
+        "name": "Real Estate",
+        "icon": "🏠",
+        "color": "#4ECDC4"
+      },
+      {
+        "name": "Communication",
+        "icon": "📱",
+        "color": "#45B7D1"
+      },
+      {
+        "name": "Industrial",
+        "icon": "🏗️",
+        "color": "#96CEB4"
+      },
+      {
+        "name": "Transportation",
+        "icon": "🚚",
+        "color": "#FFEAA7"
+      }
+    ]
+  },
+  "stocks": [
+    {
+      "id": 1,
+      "symbol": "MC",
+      "name": "LVMH",
+      "market": "Paris",
+      "sector": "Consommation cyclique",
+      "industry": "Textile et habillement",
+      "marketCap": "264,52 Md €",
+      "per": "24,2x",
+      "peg": "-1,16",
+      "lastPrice": "532,80 €",
+      "variation": "-1,4%",
+      "logo": "https://logo.clearbit.com/lvmh.com",
+      "roe": 22,
+      "roa": 12,
+      "perValue": 24.2,
+      "pb": 4.5,
+      "pegValue": -1.16,
+      "debtEquity": 35,
+      "debtEbitda": 25,
+      "cashRatio": 0.8,
+      "margeExploitation": 28,
+      "margeNette": 18
+    },
+    {
+      "id": 2,
+      "symbol": "RMS",
+      "name": "Hermès International",
+      "market": "Paris",
+      "sector": "Consommation cyclique",
+      "industry": "Textile et habillement",
+      "marketCap": "213,13 Md €",
+      "per": "47,7x",
+      "peg": "84,16",
+      "lastPrice": "2026 €",
+      "variation": "-0,8%",
+      "logo": "https://logo.clearbit.com/hermes.com",
+      "roe": 35,
+      "roa": 18,
+      "perValue": 47.7,
+      "pb": 8.2,
+      "pegValue": 84.16,
+      "debtEquity": 15,
+      "debtEbitda": 12,
+      "cashRatio": 1.2,
+      "margeExploitation": 42,
+      "margeNette": 32
+    },
+    {
+      "id": 3,
+      "symbol": "OR",
+      "name": "L'Oréal",
+      "market": "Paris",
+      "sector": "Consommation non cyclique",
+      "industry": "Produits et services personnels",
+      "marketCap": "196,33 Md €",
+      "per": "32,3x",
+      "peg": "-5,81",
+      "lastPrice": "368,50 €",
+      "variation": "-0,4%",
+      "logo": "https://logo.clearbit.com/loreal.com",
+      "roe": 28,
+      "roa": 14,
+      "perValue": 32.3,
+      "pb": 5.1,
+      "pegValue": -5.81,
+      "debtEquity": 22,
+      "debtEbitda": 18,
+      "cashRatio": 0.9,
+      "margeExploitation": 19,
+      "margeNette": 16
+    },
+    {
+      "id": 4,
+      "symbol": "AIR",
+      "name": "Airbus Group",
+      "market": "Paris",
+      "sector": "Industriels",
+      "industry": "Aérospatiale et défense",
+      "marketCap": "160,75 Md €",
+      "per": "32,5x",
+      "peg": "0,54",
+      "lastPrice": "203,30 €",
+      "variation": "+0,5%",
+      "logo": "https://logo.clearbit.com/airbus.com",
+      "roe": 18,
+      "roa": 8,
+      "perValue": 32.5,
+      "pb": 3.2,
+      "pegValue": 0.54,
+      "debtEquity": 45,
+      "debtEbitda": 38,
+      "cashRatio": 0.7,
+      "margeExploitation": 8,
+      "margeNette": 6
+    },
+    {
+      "id": 5,
+      "symbol": "SU",
+      "name": "Schneider Electric",
+      "market": "Paris",
+      "sector": "Industriels",
+      "industry": "Machines, outils, véhicules",
+      "marketCap": "138,14 Md €",
+      "per": "32,3x",
+      "peg": "2,84",
+      "lastPrice": "245,15 €",
+      "variation": "-0,7%",
+      "logo": "https://logo.clearbit.com/se.com",
+      "roe": 15,
+      "roa": 7,
+      "perValue": 32.3,
+      "pb": 2.8,
+      "pegValue": 2.84,
+      "debtEquity": 52,
+      "debtEbitda": 48,
+      "cashRatio": 0.6,
+      "margeExploitation": 14,
+      "margeNette": 9
+    },
+    {
+      "id": 6,
+      "symbol": "EL",
+      "name": "EssilorLuxottica",
+      "market": "Paris",
+      "sector": "Santé",
+      "industry": "Équipement et fournitures",
+      "marketCap": "125,80 Md €",
+      "per": "53x",
+      "peg": "23,57",
+      "lastPrice": "272,20 €",
+      "variation": "-0,9%",
+      "logo": "https://logo.clearbit.com/essilorluxottica.com",
+      "roe": 8,
+      "roa": 4,
+      "perValue": 53,
+      "pb": 6.5,
+      "pegValue": 23.57,
+      "debtEquity": 58,
+      "debtEbitda": 62,
+      "cashRatio": 0.4,
+      "margeExploitation": 18,
+      "margeNette": 12
+    },
+    {
+      "id": 7,
+      "symbol": "SAF",
+      "name": "Safran",
+      "market": "Paris",
+      "sector": "Industriels",
+      "industry": "Aérospatiale et défense",
+      "marketCap": "124,64 Md €",
+      "per": "28,5x",
+      "peg": "0,17",
+      "lastPrice": "299,50 €",
+      "variation": "+0,5%",
+      "logo": "https://logo.clearbit.com/safran-group.com",
+      "roe": 25,
+      "roa": 11,
+      "perValue": 28.5,
+      "pb": 3.8,
+      "pegValue": 0.17,
+      "debtEquity": 28,
+      "debtEbitda": 32,
+      "cashRatio": 0.85,
+      "margeExploitation": 15,
+      "margeNette": 11
+    }
+  ],
+  "categories": [
+    {
+      "key": "Larges Caps",
+      "label": "Larges Caps"
+    },
+    {
+      "key": "Small caps",
+      "label": "Small caps"
+    },
+    {
+      "key": "Top Gagnantes",
+      "label": "Top Gagnantes"
+    },
+    {
+      "key": "Plus cheres",
+      "label": "Plus cheres"
+    },
+    {
+      "key": "Plus performnats",
+      "label": "Plus performnats"
+    },
+    {
+      "key": "Plus Active",
+      "label": "Plus Active"
+    },
+    {
+      "key": "Plus valotiles",
+      "label": "Plus valotiles"
+    },
+    {
+      "key": "Penny stock",
+      "label": "Penny stock"
+    },
+    {
+      "key": "Plus bas",
+      "label": "Plus bas"
+    },
+    {
+      "key": "Plus hauts",
+      "label": "Plus hauts"
+    }
+  ],
+  "filterOptions": {
+    "roe": [
+      "Tout",
+      "0-10% (faible)",
+      "10-20% (correcte)",
+      ">20% (élevée)"
+    ],
+    "roa": [
+      "Tout",
+      "0-5% (faible)",
+      "5-10% (moyenne)",
+      ">10% (bonne)"
+    ],
+    "per": [
+      "Tout",
+      "<10 (sous-évalué)",
+      "10-25 (raisonnable)",
+      ">25 (élevé)"
+    ],
+    "pb": [
+      "Tout",
+      "<1 (sous-évalué)",
+      "1-2 (correct)",
+      ">2 (élevé)"
+    ],
+    "peg": [
+      "Tout",
+      "<1 (attractif)",
+      "1-2 (raisonnable)",
+      ">2 (cher)"
+    ],
+    "debtEquity": [
+      "Tout",
+      "<20% (faible)",
+      "20-50% (modéré)",
+      ">50% (élevé)"
+    ],
+    "debtEbitda": [
+      "Tout",
+      "<20% (faible)",
+      "20-50% (modéré)",
+      ">50% (élevé)"
+    ],
+    "cashRatio": [
+      "Tout",
+      "<0.5 (faible)",
+      "0.5-1 (correcte)",
+      ">1 (très bonne)"
+    ],
+    "margeExploitation": [
+      "Tout",
+      "0-10% (faible)",
+      "10-20% (correcte)",
+      ">20% (excellente)"
+    ],
+    "margeNette": [
+      "Tout",
+      "0-5% (faible)",
+      "5-15% (moyenne)",
+      ">15% (très bonne)"
+    ]
+  },
+  "usStocks": {
+    "AAPL": {
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "currentPrice": 278.28,
+      "currency": "USD",
+      "marketState": "CLOSED",
+      "marketCap": 4129783545856,
+      "country": "United States",
+      "sector": "Technology",
+      "perf_day": {
+        "changePercent": 1.25,
+        "change": 3.45,
+        "open": 275.50,
+        "high": 279.80,
+        "low": 274.20,
+        "previousClose": 274.83,
+        "volume": 45234567,
+        "timestamp": "2025-01-20T20:00:00Z"
+      }
+    },
+    "GOOG": {
+      "symbol": "GOOG",
+      "name": "Alphabet Inc.",
+      "currentPrice": 310.52,
+      "currency": "USD",
+      "marketState": "CLOSED",
+      "marketCap": 3748545691648,
+      "country": "United States",
+      "sector": "Communication Services",
+      "perf_day": {
+        "changePercent": -0.85,
+        "change": -2.65,
+        "open": 313.20,
+        "high": 314.50,
+        "low": 309.80,
+        "previousClose": 313.17,
+        "volume": 23456789,
+        "timestamp": "2025-01-20T20:00:00Z"
+      }
+    },
+    "MSFT": {
+      "symbol": "MSFT",
+      "name": "Microsoft Corporation",
+      "currentPrice": 478.53,
+      "currency": "USD",
+      "marketState": "CLOSED",
+      "marketCap": 3556993138688,
+      "country": "United States",
+      "sector": "Technology",
+      "perf_day": {
+        "changePercent": 2.15,
+        "change": 10.08,
+        "open": 470.25,
+        "high": 480.10,
+        "low": 469.50,
+        "previousClose": 468.45,
+        "volume": 18923456,
+        "timestamp": "2025-01-20T20:00:00Z"
+      }
+    },
+    "NFLX": {
+      "symbol": "NFLX",
+      "name": "Netflix Inc.",
+      "currentPrice": 95.19,
+      "currency": "USD",
+      "marketState": "CLOSED",
+      "marketCap": 403350814720,
+      "country": "United States",
+      "sector": "Communication Services",
+      "perf_day": {
+        "changePercent": -1.45,
+        "change": -1.40,
+        "open": 96.50,
+        "high": 97.20,
+        "low": 94.80,
+        "previousClose": 96.59,
+        "volume": 12345678,
+        "timestamp": "2025-01-20T20:00:00Z"
+      }
+    },
+    "TSLA": {
+      "symbol": "TSLA",
+      "name": "Tesla Inc.",
+      "currentPrice": 458.96,
+      "currency": "USD",
+      "marketState": "CLOSED",
+      "marketCap": 1526417981440,
+      "country": "United States",
+      "sector": "Consumer Cyclical",
+      "perf_day": {
+        "changePercent": 3.20,
+        "change": 14.25,
+        "open": 445.30,
+        "high": 462.50,
+        "low": 443.80,
+        "previousClose": 444.71,
+        "volume": 56789012,
+        "timestamp": "2025-01-20T20:00:00Z"
+      }
+    }
+  }
+}
