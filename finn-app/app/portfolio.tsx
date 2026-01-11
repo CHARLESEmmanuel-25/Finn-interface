@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  Image,
   Alert,
   RefreshControl,
 } from "react-native";
@@ -14,6 +13,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LogoImage } from "../components/LogoImage";
 
 interface PortfolioCompany {
   symbol: string;
@@ -199,13 +199,12 @@ const PortfolioCard = ({
     <TouchableOpacity style={styles.portfolioCard} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.cardHeader}>
         <View style={styles.logoContainer}>
-          {company.logo ? (
-            <Image source={{ uri: company.logo }} style={styles.logo} />
-          ) : (
-            <View style={styles.logoPlaceholder}>
-              <Ionicons name="business" size={24} color="#8B5CF6" />
-            </View>
-          )}
+          <LogoImage
+            logo={company.logo}
+            symbol={company.symbol}
+            name={company.name}
+            size={48}
+          />
         </View>
         <View style={styles.companyInfo}>
           <Text style={styles.companySymbol}>{company.symbol}</Text>

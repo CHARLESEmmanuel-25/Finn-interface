@@ -14,6 +14,7 @@ import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LogoImage } from "../components/LogoImage";
 
 // const { width } = Dimensions.get('window'); // Utilisé dans les styles
 
@@ -126,6 +127,9 @@ export default function Index() {
                   uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
                 }}
                 style={styles.avatar}
+                // The corrected Image component should come from 'react-native'
+                // If 'Image' is not imported from 'react-native', update the import elsewhere:
+                // import { Image } from 'react-native';
               />
             </TouchableOpacity>
             <View style={styles.userInfo}>
@@ -179,7 +183,7 @@ export default function Index() {
               symbol="AAPL"
               name="Apple Inc."
               price="$191.12"
-              logo="https://logo.clearbit.com/apple.com"
+              logo={null}
               onPress={() =>
                 router.push({
                   pathname: "/company-profile",
@@ -188,7 +192,7 @@ export default function Index() {
                     name: "Apple Inc.",
                     price: "191.12",
                     change: "+2.5",
-                    logo: "https://logo.clearbit.com/apple.com",
+                    logo: "",
                     location: "Cupertino, CA, USA",
                     website: "www.apple.com",
                     about:
@@ -207,7 +211,7 @@ export default function Index() {
               symbol="GOOGL"
               name="Google"
               price="$142.50"
-              logo="https://logo.clearbit.com/google.com"
+              logo={null}
               onPress={() =>
                 router.push({
                   pathname: "/company-profile",
@@ -216,7 +220,7 @@ export default function Index() {
                     name: "Alphabet Inc. (Google)",
                     price: "142.50",
                     change: "+1.8",
-                    logo: "https://logo.clearbit.com/google.com",
+                    logo: "",
                     location: "Mountain View, CA, USA",
                     website: "www.google.com",
                     about:
@@ -244,7 +248,7 @@ export default function Index() {
               name="Tesla Inc."
               price="$245.67"
               change="+5.2%"
-              logo="https://logo.clearbit.com/tesla.com"
+              logo={null}
               onPress={() =>
                 router.push({
                   pathname: "/company-profile",
@@ -253,7 +257,7 @@ export default function Index() {
                     name: "Tesla Inc.",
                     price: "245.67",
                     change: "+5.2",
-                    logo: "https://logo.clearbit.com/tesla.com",
+                    logo: "",
                     location: "Austin, TX, USA",
                     website: "www.tesla.com",
                     about:
@@ -272,7 +276,7 @@ export default function Index() {
               symbol="NVDA"
               name="NVIDIA Corp."
               price="$485.20"
-              logo= "https://logo.clearbit.com/nvidia.com"
+              logo={null}
               change="+3.8%"
               onPress={() =>
                 router.push({
@@ -282,7 +286,7 @@ export default function Index() {
                     name: "NVIDIA Corporation",
                     price: "485.20",
                     change: "+3.8",
-                    logo: "https://logo.clearbit.com/nvidia.com",
+                    logo: "",
                     location: "Santa Clara, CA, USA",
                     website: "www.nvidia.com",
                     about:
@@ -301,7 +305,7 @@ export default function Index() {
               symbol="AMD"
               name="AMD"
               price="$128.45"
-              logo= "https://logo.clearbit.com/amd.com"
+              logo={null}
               change="+2.9%"
               onPress={() =>
                 router.push({
@@ -311,7 +315,7 @@ export default function Index() {
                     name: "Advanced Micro Devices",
                     price: "128.45",
                     change: "+2.9",
-                    logo: "https://logo.clearbit.com/amd.com",
+                    logo: "",
                     location: "Santa Clara, CA, USA",
                     website: "www.amd.com",
                     about:
@@ -427,13 +431,7 @@ export default function Index() {
 const LargeCapCard = ({ symbol, name, price, logo, onPress }: any) => (
   <TouchableOpacity style={styles.largeCapCard} onPress={onPress}>
     <View style={styles.largeCapIconContainer}>
-      {logo ? (
-        <Image source={{ uri: logo }} style={styles.largeCapLogo} />
-      ) : (
-        <View style={styles.largeCapIcon}>
-          <Ionicons name="trending-up" size={24} color="#8B5CF6" />
-        </View>
-      )}
+      <LogoImage logo={logo} symbol={symbol} name={name} size={48} />
     </View>
     <Text style={styles.largeCapSymbol}>{symbol}</Text>
     <Text style={styles.largeCapName}>{name}</Text>
@@ -451,16 +449,7 @@ const LargeCapCard = ({ symbol, name, price, logo, onPress }: any) => (
 const WinningStockCard = ({ symbol, name, price, change, logo, onPress }: any) => (
   <TouchableOpacity style={styles.winningStockCard} onPress={onPress}>
     <View style={styles.winningStockLogoContainer}>
-      {logo ? (
-        <Image 
-          source={{ uri: logo }} 
-          style={styles.winningStockLogo}
-        />
-      ) : (
-        <View style={styles.winningStockIcon}>
-          <Ionicons name="trending-up" size={20} color="#4CD964" />
-        </View>
-      )}
+      <LogoImage logo={logo} symbol={symbol} name={name} size={48} />
     </View>
     <View style={styles.winningStockContent}>
       <View style={styles.winningStockLeft}>
