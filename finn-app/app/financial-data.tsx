@@ -31,7 +31,7 @@ export default function FinancialData() {
       resultatNetChange: "+38.64",
     },
     {
-      period: "Q4 '24",
+      period: "Q2 '25",
       revenus: "186M €",
       revenusChange: "-32.00",
       ebitda: "-13.3M €",
@@ -40,7 +40,7 @@ export default function FinancialData() {
       resultatNetChange: "-694.80",
     },
     {
-      period: "Q3 '24",
+      period: "Q3 '25",
       revenus: "239M €",
       revenusChange: "-12.03",
       ebitda: "5.02M €",
@@ -49,7 +49,7 @@ export default function FinancialData() {
       resultatNetChange: "-15.20",
     },
     {
-      period: "Q2 '24",
+      period: "Q4 '25",
       revenus: "272M €",
       revenusChange: "+8.50",
       ebitda: "6.7M €",
@@ -160,7 +160,7 @@ export default function FinancialData() {
           onPress={() => setSelectedSection("resultat")}
         >
           <Text style={[styles.sectionTabText, selectedSection === "resultat" && styles.sectionTabTextActive]}>
-            Compte de résultat
+            Résultat
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -239,7 +239,7 @@ export default function FinancialData() {
                     <Text style={styles.financialLabel}>Revenus</Text>
                     <View style={styles.financialRight}>
                       <Text style={styles.financialValue}>{quarter.revenus}</Text>
-                      <View style={[ parseFloat(quarter.revenusChange) >= 0 ? styles.changeBadgePositive : styles.changeBadgeNegative]}>
+                      <View style={[ styles.changeBadge, parseFloat(quarter.revenusChange) >= 0 ? styles.changeBadgePositive : styles.changeBadgeNegative]}>
                         <Ionicons 
                           name={parseFloat(quarter.revenusChange) >= 0 ? "arrow-up" : "arrow-down"} 
                           size={12} 

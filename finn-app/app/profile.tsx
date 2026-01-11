@@ -93,14 +93,14 @@ export default function ProfileScreen() {
         </View>
 
         {/* Tracked Stocks */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tracked Stocks</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trackedStocksScroll}>
             <TrackedStockCard symbol="AAPL" name="Apple" price="$191.12" />
             <TrackedStockCard symbol="GOOGL" name="Google" price="$142.50" />
             <TrackedStockCard symbol="AMZN" name="Amazon" price="$139.83" />
           </ScrollView>
-        </View>
+        </View> */}
 
         {/* General Settings */}
         <View style={styles.section}>
