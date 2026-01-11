@@ -148,12 +148,12 @@ export default function Index() {
                 placeholderTextColor="#666"
               />
             </View>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.filterButton}
               onPress={() => router.push("/filter" as any)}
             >
               <Ionicons name="options-outline" size={20} color="#FFF" />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
@@ -407,11 +407,14 @@ export default function Index() {
           <Ionicons name="compass-outline" size={24} color="#FFF" />
           <Text style={styles.navText}>Discover</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/portfolio" as any)}
+        >
           <Ionicons name="briefcase-outline" size={24} color="#FFF" />
           <Text style={styles.navText}>Portfolio</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile" as any)}>
           <Ionicons name="person-outline" size={24} color="#FFF" />
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
