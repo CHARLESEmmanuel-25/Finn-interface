@@ -6,15 +6,16 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  Image,
   Dimensions,
   Alert,
+  Image,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LineChart } from "react-native-chart-kit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LogoImage } from "../components/LogoImage";
 
 const { width } = Dimensions.get("window");
 
@@ -30,7 +31,7 @@ export default function CompanyProfile() {
     name: (params.name as string) || "Apple Inc.",
     price: (params.price as string) || "123.45",
     change: (params.change as string) || "+2.5",
-    logo: (params.logo as string) || "https://logo.clearbit.com/apple.com",
+    logo: (params.logo as string) || "",
     location: (params.location as string) || "Cupertino, CA, USA",
     website: (params.website as string) || "www.apple.com",
     about: (params.about as string) || "No description available.",
@@ -170,7 +171,12 @@ export default function CompanyProfile() {
         {/* Company Info */}
         <View style={styles.companyHeader}>
           <View style={styles.logoContainer}>
-            <Image source={{ uri: companyData.logo }} style={styles.logo} />
+            <LogoImage
+              logo={companyData.logo}
+              symbol={companyData.symbol}
+              name={companyData.name}
+              size={60}
+            />
           </View>
           <View style={styles.companyInfo}>
             <Text style={styles.companyName}>

@@ -73,7 +73,7 @@ export default function FrenchStocks() {
       peg: "-1,16",
       lastPrice: "532,80 €",
       variation: "-1,4%",
-      logo: "https://logo.clearbit.com/lvmh.com",
+      logo: "",
       // Ratios pour les filtres
       roe: 22, // >20% (élevée)
       roa: 12, // >10% (bonne)
@@ -330,7 +330,7 @@ export default function FrenchStocks() {
         name: stock.name,
         price: stock.lastPrice.replace(/[€\s]/g, ""),
         change: stock.variation.replace("%", ""),
-        logo: stock.logo,
+        logo: stock.logo || "",
         location: `${stock.market}, France`,
         website: `www.${stock.name.toLowerCase().replace(/\s/g, "")}.com`,
         about: `${stock.name} est une entreprise française cotée en bourse, leader dans le secteur ${stock.sector.toLowerCase()}.`,

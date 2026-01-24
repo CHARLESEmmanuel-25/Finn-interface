@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,35 +6,52 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { fetchSectors, type Sector } from '../services/api';
+
+// Couleurs par défaut pour les secteurs
+const sectorColors: { [key: string]: string } = {
+  'Technology': '#8B5CF6',
+  'Technologies': '#8B5CF6',
+  'Finance': '#4CD964',
+  'Healthcare': '#FF3B30',
+  'Energy': '#FF9500',
+  'Consumer': '#5AC8FA',
+  'Consumer Cyclical': '#5AC8FA',
+  'Utilities': '#FFCC00',
+  'Communication Services': '#45B7D1',
+  'Industrials': '#96CEB4',
+  'Services': '#4ECDC4',
+};
 
 export default function MarketSectorsScreen() {
-  const topSectors = [
-    { name: 'Finance', icon: '🏦', color: '#4CD964' },
-    { name: 'Technology', icon: '💻', color: '#8B5CF6' },
-    { name: 'Utilities', icon: '⚡', color: '#FFCC00' },
-    { name: 'Healthcare', icon: '🏥', color: '#FF3B30' },
-    { name: 'Energy', icon: '⛽', color: '#FF9500' },
-    { name: 'Consumer', icon: '🛒', color: '#5AC8FA' },
-  ];
+  const [sectors, setSectors] = useState<Sector[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const allSectors = [
-    { name: 'Business', icon: '💼', color: '#8B5CF6' },
-    { name: 'Energy', icon: '⚡', color: '#FF9500' },
-    { name: 'Healthcare', icon: '🏥', color: '#FF3B30' },
-    { name: 'Finance', icon: '🏦', color: '#4CD964' },
-    { name: 'Technology', icon: '💻', color: '#8B5CF6' },
-    { name: 'Consumer', icon: '🛒', color: '#5AC8FA' },
-    { name: 'Utilities', icon: '⚡', color: '#FFCC00' },
-    { name: 'Materials', icon: '🏭', color: '#FF6B6B' },
-    { name: 'Real Estate', icon: '🏠', color: '#4ECDC4' },
-    { name: 'Communication', icon: '📱', color: '#45B7D1' },
-    { name: 'Industrial', icon: '🏗️', color: '#96CEB4' },
-    { name: 'Transportation', icon: '🚚', color: '#FFEAA7' },
-  ];
+  useEffect(() => {
+    loadSectors();
+  }, []);
+
+  const loadSectors = async () => {
+    try {
+      setLoading(true);
+      const sectorsData = await fetchSectors();
+      setSectors(sectorsData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des secteurs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Top secteurs (premiers 6)
+  const topSectors = sectors.slice(0, 6);
+  // Tous les secteurs
+  const allSectors = sectors;
 
   const handleSectorPress = (sector: any) => {
     console.log(`Secteur sélectionné: ${sector.name}`);
@@ -55,33 +72,47 @@ export default function MarketSectorsScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Top Sectors */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Top Sectors</Text>
-          <View style={styles.sectorsGrid}>
-            {topSectors.map((sector, index) => (
-              <SectorCard 
-                key={index}
-                sector={sector}
-                onPress={() => handleSectorPress(sector)}
-              />
-            ))}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#8B5CF6" />
           </View>
-        </View>
+        ) : sectors.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Aucun secteur disponible</Text>
+          </View>
+        ) : (
+          <>
+            {/* Top Sectors */}
+            {topSectors.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Top Sectors</Text>
+                <View style={styles.sectorsGrid}>
+                  {topSectors.map((sector) => (
+                    <SectorCard 
+                      key={sector._id}
+                      sector={sector}
+                      onPress={() => handleSectorPress(sector)}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
 
-        {/* All Market Sectors */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>All Market Sectors</Text>
-          <View style={styles.sectorsGrid}>
-            {allSectors.map((sector, index) => (
-              <SectorCard 
-                key={index}
-                sector={sector}
-                onPress={() => handleSectorPress(sector)}
-              />
-            ))}
-          </View>
-        </View>
+            {/* All Market Sectors */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>All Market Sectors</Text>
+              <View style={styles.sectorsGrid}>
+                {allSectors.map((sector) => (
+                  <SectorCard 
+                    key={sector._id}
+                    sector={sector}
+                    onPress={() => handleSectorPress(sector)}
+                  />
+                ))}
+              </View>
+            </View>
+          </>
+        )}
 
         {/* Espace pour la navigation en bas */}
         <View style={styles.bottomSpacer} />
@@ -91,14 +122,17 @@ export default function MarketSectorsScreen() {
 }
 
 // Composant pour les cartes de secteur
-const SectorCard = ({ sector, onPress }: any) => (
-  <TouchableOpacity style={styles.sectorCard} onPress={onPress}>
-    <View style={[styles.sectorIcon, { backgroundColor: sector.color + '20' }]}>
-      <Text style={styles.sectorEmoji}>{sector.icon}</Text>
-    </View>
-    <Text style={styles.sectorName}>{sector.name}</Text>
-  </TouchableOpacity>
-);
+const SectorCard = ({ sector, onPress }: { sector: Sector; onPress: () => void }) => {
+  const color = sectorColors[sector.name] || '#8B5CF6';
+  return (
+    <TouchableOpacity style={styles.sectorCard} onPress={onPress}>
+      <View style={[styles.sectorIcon, { backgroundColor: color + '20' }]}>
+        <Text style={styles.sectorEmoji}>{sector.logo || '📊'}</Text>
+      </View>
+      <Text style={styles.sectorName}>{sector.name}</Text>
+    </TouchableOpacity>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -174,5 +208,19 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 100,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    color: '#A9A9A9',
+    fontSize: 14,
   },
 });
