@@ -9,22 +9,46 @@ import {
   TextInput,
   StatusBar,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LogoImage } from "../components/LogoImage";
+import { fetchStocks, fetchSectors, formatPrice, formatMarketCap, formatShares, type Stock, type Sector } from "../services/api";
 
 // const { width } = Dimensions.get('window'); // Utilisé dans les styles
 
 export default function Index() {
   const [userData, setUserData] = useState<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [sectors, setSectors] = useState<Sector[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     checkOnboardingStatus();
     checkUserLoginStatus();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [stocksData, sectorsData] = await Promise.all([
+        fetchStocks(),
+        fetchSectors(),
+      ]);
+      setStocks(stocksData);
+      setSectors(sectorsData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des données:', error);
+      Alert.alert('Erreur', 'Impossible de charger les données. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const checkUserLoginStatus = async () => {
     try {
@@ -105,6 +129,20 @@ export default function Index() {
     );
   }
 
+  // Obtenir les grandes capitalisations (top 2 par marketCap)
+  const largeCaps = stocks
+    .sort((a, b) => b.marketCap - a.marketCap)
+    .slice(0, 2);
+
+  // Obtenir les actions gagnantes (top 3 par percentVar positif)
+  const winningStocks = stocks
+    .filter(stock => stock.percentVar > 0)
+    .sort((a, b) => b.percentVar - a.percentVar)
+    .slice(0, 3);
+
+  // Obtenir les secteurs principaux (top 4)
+  const topSectors = sectors.slice(0, 4);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -126,6 +164,9 @@ export default function Index() {
                   uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
                 }}
                 style={styles.avatar}
+                // The corrected Image component should come from 'react-native'
+                // If 'Image' is not imported from 'react-native', update the import elsewhere:
+                // import { Image } from 'react-native';
               />
             </TouchableOpacity>
             <View style={styles.userInfo}>
@@ -174,159 +215,97 @@ export default function Index() {
         {/* Section Grandes capitalisation (Large Cap) */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Grandes capitalisation</Text>
-          <View style={styles.largeCapGrid}>
-            <LargeCapCard
-              symbol="AAPL"
-              name="Apple Inc."
-              price="$191.12"
-              logo="https://logo.clearbit.com/apple.com"
-              onPress={() =>
-                router.push({
-                  pathname: "/company-profile",
-                  params: {
-                    symbol: "AAPL",
-                    name: "Apple Inc.",
-                    price: "191.12",
-                    change: "+2.5",
-                    logo: "https://logo.clearbit.com/apple.com",
-                    location: "Cupertino, CA, USA",
-                    website: "www.apple.com",
-                    about:
-                      "Apple Inc. is a global tech company that designs and sells consumer electronics, software, and online services. Known for its iPhones, Macs, and innovation-driven products, Apple serves millions of users worldwide.",
-                    marketCap: "$2.6T",
-                    shares: "15.2B",
-                    revenue: "$394.3B",
-                    eps: "$6.05",
-                    peRatio: "28.7",
-                    dividend: "0.55%",
-                  },
-                } as any)
-              }
-            />
-            <LargeCapCard
-              symbol="GOOGL"
-              name="Google"
-              price="$142.50"
-              logo="https://logo.clearbit.com/google.com"
-              onPress={() =>
-                router.push({
-                  pathname: "/company-profile",
-                  params: {
-                    symbol: "GOOGL",
-                    name: "Alphabet Inc. (Google)",
-                    price: "142.50",
-                    change: "+1.8",
-                    logo: "https://logo.clearbit.com/google.com",
-                    location: "Mountain View, CA, USA",
-                    website: "www.google.com",
-                    about:
-                      "Alphabet Inc. is the parent company of Google and several other subsidiaries. It specializes in internet services, advertising, cloud computing, and artificial intelligence technologies.",
-                    marketCap: "$1.8T",
-                    shares: "12.8B",
-                    revenue: "$307.4B",
-                    eps: "$5.80",
-                    peRatio: "24.6",
-                    dividend: "0.00%",
-                  },
-                } as any)
-              }
-            />
-          </View>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#8B5CF6" />
+            </View>
+          ) : largeCaps.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Aucune donnée disponible</Text>
+            </View>
+          ) : (
+            <View style={styles.largeCapGrid}>
+              {largeCaps.map((stock) => (
+                <LargeCapCard
+                  key={stock._id}
+                  symbol={stock.symbol}
+                  name={stock.shortName}
+                  price={formatPrice(stock.currentPrice, stock.currency)}
+                  logo={stock.logo}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/company-profile",
+                      params: {
+                        symbol: stock.symbol,
+                        name: stock.shortName,
+                        price: stock.currentPrice.toString(),
+                        change: stock.percentVar.toString(),
+                        logo: stock.logo || "",
+                        location: stock.country,
+                        website: stock.website,
+                        about: stock.summary,
+                        marketCap: formatMarketCap(stock.marketCap),
+                        shares: formatShares(stock.sharesStats),
+                        revenue: "N/A",
+                        eps: stock.EPS?.toString() || "N/A",
+                        peRatio: stock.PER?.toString() || "N/A",
+                        dividend: stock.dividendYield ? `${(stock.dividendYield * 100).toFixed(2)}%` : "0.00%",
+                      },
+                    } as any)
+                  }
+                />
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Section Action gagnantes (Winning Stocks) */}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Action gagnantes</Text>
-          <View style={styles.winningStocksList}>
-            <WinningStockCard
-              symbol="TSLA"
-              name="Tesla Inc."
-              price="$245.67"
-              change="+5.2%"
-              logo="https://logo.clearbit.com/tesla.com"
-              onPress={() =>
-                router.push({
-                  pathname: "/company-profile",
-                  params: {
-                    symbol: "TSLA",
-                    name: "Tesla Inc.",
-                    price: "245.67",
-                    change: "+5.2",
-                    logo: "https://logo.clearbit.com/tesla.com",
-                    location: "Austin, TX, USA",
-                    website: "www.tesla.com",
-                    about:
-                      "Tesla Inc. is an American electric vehicle and clean energy company. Known for its innovative electric cars, battery energy storage, and solar panel manufacturing.",
-                    marketCap: "$780.5B",
-                    shares: "3.2B",
-                    revenue: "$96.8B",
-                    eps: "$4.07",
-                    peRatio: "60.3",
-                    dividend: "0.00%",
-                  },
-                } as any)
-              }
-            />
-            <WinningStockCard
-              symbol="NVDA"
-              name="NVIDIA Corp."
-              price="$485.20"
-              logo= "https://logo.clearbit.com/nvidia.com"
-              change="+3.8%"
-              onPress={() =>
-                router.push({
-                  pathname: "/company-profile",
-                  params: {
-                    symbol: "NVDA",
-                    name: "NVIDIA Corporation",
-                    price: "485.20",
-                    change: "+3.8",
-                    logo: "https://logo.clearbit.com/nvidia.com",
-                    location: "Santa Clara, CA, USA",
-                    website: "www.nvidia.com",
-                    about:
-                      "NVIDIA Corporation is a leading technology company specializing in graphics processing units (GPUs), AI computing, and gaming technologies.",
-                    marketCap: "$1.2T",
-                    shares: "2.5B",
-                    revenue: "$60.9B",
-                    eps: "$11.93",
-                    peRatio: "40.7",
-                    dividend: "0.03%",
-                  },
-                } as any)
-              }
-            />
-            <WinningStockCard
-              symbol="AMD"
-              name="AMD"
-              price="$128.45"
-              logo= "https://logo.clearbit.com/amd.com"
-              change="+2.9%"
-              onPress={() =>
-                router.push({
-                  pathname: "/company-profile",
-                  params: {
-                    symbol: "AMD",
-                    name: "Advanced Micro Devices",
-                    price: "128.45",
-                    change: "+2.9",
-                    logo: "https://logo.clearbit.com/amd.com",
-                    location: "Santa Clara, CA, USA",
-                    website: "www.amd.com",
-                    about:
-                      "Advanced Micro Devices (AMD) is a semiconductor company that develops computer processors and related technologies for business and consumer markets.",
-                    marketCap: "$207.8B",
-                    shares: "1.6B",
-                    revenue: "$22.7B",
-                    eps: "$3.06",
-                    peRatio: "42.0",
-                    dividend: "0.00%",
-                  },
-                } as any)
-              }
-            />
-          </View>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#8B5CF6" />
+            </View>
+          ) : winningStocks.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Aucune action gagnante disponible</Text>
+            </View>
+          ) : (
+            <View style={styles.winningStocksList}>
+              {winningStocks.map((stock) => (
+                <WinningStockCard
+                  key={stock._id}
+                  symbol={stock.symbol}
+                  name={stock.shortName}
+                  price={formatPrice(stock.currentPrice, stock.currency)}
+                  change={`${stock.percentVar >= 0 ? '+' : ''}${stock.percentVar.toFixed(2)}%`}
+                  logo={stock.logo}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/company-profile",
+                      params: {
+                        symbol: stock.symbol,
+                        name: stock.shortName,
+                        price: stock.currentPrice.toString(),
+                        change: stock.percentVar.toString(),
+                        logo: stock.logo || "",
+                        location: stock.country,
+                        website: stock.website,
+                        about: stock.summary,
+                        marketCap: formatMarketCap(stock.marketCap),
+                        shares: formatShares(stock.sharesStats),
+                        revenue: "N/A",
+                        eps: stock.EPS?.toString() || "N/A",
+                        peRatio: stock.PER?.toString() || "N/A",
+                        dividend: stock.dividendYield ? `${(stock.dividendYield * 100).toFixed(2)}%` : "0.00%",
+                      },
+                    } as any)
+                  }
+                />
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Section Secteurs */}
@@ -339,16 +318,25 @@ export default function Index() {
               <Text style={styles.viewMoreText}>voir plus</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.sectorsScroll}
-          >
-            <SectorCard name="Technology" icon="💻" />
-            <SectorCard name="Finance" icon="🏦" />
-            <SectorCard name="Healthcare" icon="🏥" />
-            <SectorCard name="Energy" icon="⚡" />
-          </ScrollView>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#8B5CF6" />
+            </View>
+          ) : topSectors.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Aucun secteur disponible</Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.sectorsScroll}
+            >
+              {topSectors.map((sector) => (
+                <SectorCard key={sector._id} name={sector.name} icon={sector.logo || "📊"} />
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         {/* Section Evenement à venir (Upcoming Events) */}
@@ -427,13 +415,7 @@ export default function Index() {
 const LargeCapCard = ({ symbol, name, price, logo, onPress }: any) => (
   <TouchableOpacity style={styles.largeCapCard} onPress={onPress}>
     <View style={styles.largeCapIconContainer}>
-      {logo ? (
-        <Image source={{ uri: logo }} style={styles.largeCapLogo} />
-      ) : (
-        <View style={styles.largeCapIcon}>
-          <Ionicons name="trending-up" size={24} color="#8B5CF6" />
-        </View>
-      )}
+      <LogoImage logo={logo} symbol={symbol} name={name} size={48} />
     </View>
     <Text style={styles.largeCapSymbol}>{symbol}</Text>
     <Text style={styles.largeCapName}>{name}</Text>
@@ -451,16 +433,7 @@ const LargeCapCard = ({ symbol, name, price, logo, onPress }: any) => (
 const WinningStockCard = ({ symbol, name, price, change, logo, onPress }: any) => (
   <TouchableOpacity style={styles.winningStockCard} onPress={onPress}>
     <View style={styles.winningStockLogoContainer}>
-      {logo ? (
-        <Image 
-          source={{ uri: logo }} 
-          style={styles.winningStockLogo}
-        />
-      ) : (
-        <View style={styles.winningStockIcon}>
-          <Ionicons name="trending-up" size={20} color="#4CD964" />
-        </View>
-      )}
+      <LogoImage logo={logo} symbol={symbol} name={name} size={48} />
     </View>
     <View style={styles.winningStockContent}>
       <View style={styles.winningStockLeft}>
@@ -999,5 +972,19 @@ winningStockChange: {
   },
   bottomSpacer: {
     height: 100,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    color: '#A9A9A9',
+    fontSize: 14,
   },
 });
