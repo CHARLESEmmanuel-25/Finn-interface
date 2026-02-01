@@ -79,15 +79,16 @@ export function formatPrice(price: number, currency: string): string {
 /**
  * Formate la capitalisation boursière
  */
-export function formatMarketCap(marketCap: number): string {
+export function formatMarketCap(marketCap: number, currency: string = 'USD'): string {
+  const symbol = currency === 'EUR' ? '€' : '$';
   if (marketCap >= 1e12) {
-    return `$${(marketCap / 1e12).toFixed(2)}T`;
+    return `${symbol}${(marketCap / 1e12).toFixed(2)} T`;
   } else if (marketCap >= 1e9) {
-    return `$${(marketCap / 1e9).toFixed(2)}B`;
+    return `${symbol}${(marketCap / 1e9).toFixed(2)} B`;
   } else if (marketCap >= 1e6) {
-    return `$${(marketCap / 1e6).toFixed(2)}M`;
+    return `${symbol}${(marketCap / 1e6).toFixed(2)} M`;
   }
-  return `$${marketCap.toFixed(2)}`;
+  return `${symbol}${marketCap.toFixed(2)}`;
 }
 
 /**
