@@ -41,6 +41,7 @@ export default function CompanyProfile() {
     eps: (params.eps as string) || "$0.00",
     peRatio: (params.peRatio as string) || "0.0",
     dividend: (params.dividend as string) || "0.00%",
+    currency: (params.currency as string) || "USD",
   };
 
   // Vérifier si l'entreprise est déjà dans le portfolio
@@ -92,6 +93,7 @@ export default function CompanyProfile() {
           eps: companyData.eps,
           peRatio: companyData.peRatio,
           dividend: companyData.dividend,
+          currency: companyData.currency,
         };
         portfolio.push(companyToAdd);
         setIsInPortfolio(true);
