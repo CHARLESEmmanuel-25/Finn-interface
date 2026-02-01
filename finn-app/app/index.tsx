@@ -129,16 +129,16 @@ export default function Index() {
     );
   }
 
-  // Obtenir les grandes capitalisations (top 2 par marketCap)
+  // Obtenir les grandes capitalisations (top 9 par marketCap) - Affichage en rectangle
   const largeCaps = stocks
     .sort((a, b) => b.marketCap - a.marketCap)
-    .slice(0, 2);
+    .slice(0, 9);
 
-  // Obtenir les actions gagnantes (top 3 par percentVar positif)
+  // Obtenir les actions gagnantes (top 5 par percentVar positif) - Affichage en liste
   const winningStocks = stocks
     .filter(stock => stock.percentVar > 0)
     .sort((a, b) => b.percentVar - a.percentVar)
-    .slice(0, 3);
+    .slice(0, 5);
 
   // Obtenir les secteurs principaux (top 4)
   const topSectors = sectors.slice(0, 4);
@@ -225,13 +225,14 @@ export default function Index() {
             </View>
           ) : (
             <View style={styles.largeCapGrid}>
-              {largeCaps.map((stock) => (
+              {largeCaps.map((stock, index) => (
                 <LargeCapCard
                   key={stock._id}
                   symbol={stock.symbol}
                   name={stock.shortName}
-                  price={formatPrice(stock.currentPrice, stock.currency)}
+                  percentVar={stock.percentVar}
                   logo={stock.logo}
+                  rank={index + 1}
                   onPress={() =>
                     router.push({
                       pathname: "/company-profile",
@@ -244,12 +245,13 @@ export default function Index() {
                         location: stock.country,
                         website: stock.website,
                         about: stock.summary,
-                        marketCap: formatMarketCap(stock.marketCap),
+                        marketCap: formatMarketCap(stock.marketCap, stock.currency),
                         shares: formatShares(stock.sharesStats),
                         revenue: "N/A",
                         eps: stock.EPS?.toString() || "N/A",
                         peRatio: stock.PER?.toString() || "N/A",
                         dividend: stock.dividendYield ? `${(stock.dividendYield * 100).toFixed(2)}%` : "0.00%",
+                        currency: stock.currency,
                       },
                     } as any)
                   }
@@ -279,7 +281,10 @@ export default function Index() {
                   symbol={stock.symbol}
                   name={stock.shortName}
                   price={formatPrice(stock.currentPrice, stock.currency)}
-                  change={`${stock.percentVar >= 0 ? '+' : ''}${stock.percentVar.toFixed(2)}%`}
+                  dailyChange={stock.currentPrice * (stock.percentVar / 100)}
+                  percentVar={stock.percentVar}
+                  marketCap={formatMarketCap(stock.marketCap, stock.currency)}
+                  currency={stock.currency}
                   logo={stock.logo}
                   onPress={() =>
                     router.push({
@@ -293,12 +298,13 @@ export default function Index() {
                         location: stock.country,
                         website: stock.website,
                         about: stock.summary,
-                        marketCap: formatMarketCap(stock.marketCap),
+                        marketCap: formatMarketCap(stock.marketCap, stock.currency),
                         shares: formatShares(stock.sharesStats),
                         revenue: "N/A",
                         eps: stock.EPS?.toString() || "N/A",
                         peRatio: stock.PER?.toString() || "N/A",
                         dividend: stock.dividendYield ? `${(stock.dividendYield * 100).toFixed(2)}%` : "0.00%",
+                        currency: stock.currency,
                       },
                     } as any)
                   }
@@ -391,16 +397,19 @@ export default function Index() {
           <Ionicons name="bar-chart" size={24} color="#8B5CF6" />
           <Text style={[styles.navText, styles.activeNavText]}>Markets</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="compass-outline" size={24} color="#FFF" />
-          <Text style={styles.navText}>Discover</Text>
-        </TouchableOpacity>
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => router.push("/portfolio" as any)}
         >
           <Ionicons name="briefcase-outline" size={24} color="#FFF" />
           <Text style={styles.navText}>Portfolio</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/forum" as any)}
+        >
+          <Ionicons name="chatbubbles-outline" size={24} color="#FFF" />
+          <Text style={styles.navText}>Forum</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile" as any)}>
           <Ionicons name="person-outline" size={24} color="#FFF" />
@@ -411,50 +420,55 @@ export default function Index() {
   );
 }
 
-// Composant pour les grandes capitalisations
-const LargeCapCard = ({ symbol, name, price, logo, onPress }: any) => (
-  <TouchableOpacity style={styles.largeCapCard} onPress={onPress}>
-    <View style={styles.largeCapIconContainer}>
-      <LogoImage logo={logo} symbol={symbol} name={name} size={48} />
-    </View>
-    <Text style={styles.largeCapSymbol}>{symbol}</Text>
-    <Text style={styles.largeCapName}>{name}</Text>
-    <Text style={styles.largeCapPrice}>{price}</Text>
-    <View style={styles.largeCapDots}>
-      <View style={styles.smallDot} />
-      <View style={styles.smallDot} />
-      <View style={styles.smallDot} />
-    </View>
-  </TouchableOpacity>
-);
+// Composant pour les grandes capitalisations - Affichage en rectangle (grille de cartes)
+const LargeCapCard = ({ symbol, name, percentVar, logo, rank, onPress }: any) => {
+  const isPositive = percentVar >= 0;
+  return (
+    <TouchableOpacity style={styles.largeCapCard} onPress={onPress}>
+      <Text style={styles.largeCapRank}>{rank}</Text>
+      <View style={styles.largeCapIconContainer}>
+        <LogoImage logo={logo} symbol={symbol} name={name} size={36} />
+      </View>
+      <Text style={styles.largeCapName} numberOfLines={2}>{name}</Text>
+      <View style={[styles.largeCapChangeContainer, isPositive ? styles.changePositive : styles.changeNegative]}>
+        <Ionicons name={isPositive ? "arrow-up" : "arrow-down"} size={12} color={isPositive ? "#4CD964" : "#FF3B30"} />
+        <Text style={[styles.largeCapPercent, { color: isPositive ? "#4CD964" : "#FF3B30" }]}>
+          {Math.abs(percentVar).toFixed(2)} %
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
-// Composant pour les actions gagnantes avec logo
-// Composant pour les actions gagnantes avec logo - Design optimisé
-const WinningStockCard = ({ symbol, name, price, change, logo, onPress }: any) => (
-  <TouchableOpacity style={styles.winningStockCard} onPress={onPress}>
-    <View style={styles.winningStockLogoContainer}>
-      <LogoImage logo={logo} symbol={symbol} name={name} size={48} />
-    </View>
-    <View style={styles.winningStockContent}>
-      <View style={styles.winningStockLeft}>
-        <Text style={styles.winningStockSymbol}>{symbol}</Text>
+// Composant pour les actions gagnantes - Affichage en liste
+const WinningStockCard = ({ symbol, name, price, dailyChange, percentVar, marketCap, currency, logo, onPress }: any) => {
+  const isPositive = percentVar >= 0;
+  const currencySymbol = currency === "EUR" ? "€" : "$";
+  return (
+    <TouchableOpacity style={styles.winningStockCard} onPress={onPress}>
+      <View style={styles.winningStockLogoContainer}>
+        <LogoImage logo={logo} symbol={symbol} name={name} size={40} />
+      </View>
+      <View style={styles.winningStockContent}>
         <Text style={styles.winningStockName}>{name}</Text>
-      </View>
-      <View style={styles.winningStockRight}>
         <Text style={styles.winningStockPrice}>{price}</Text>
-        <View style={styles.changeContainer}>
-          <Ionicons 
-            name="arrow-up" 
-            size={14} 
-            color="#4CD964" 
-            style={styles.changeIcon}
-          />
-          <Text style={styles.winningStockChange}>{change}</Text>
-        </View>
       </View>
-    </View>
-  </TouchableOpacity>
-);
+      <View style={styles.winningStockCol}>
+        <Text style={[styles.winningStockDaily, { color: isPositive ? "#4CD964" : "#FF3B30" }]}>
+          {isPositive ? "▲" : "▼"} {Math.abs(dailyChange).toFixed(2)} {currencySymbol}
+        </Text>
+      </View>
+      <View style={styles.winningStockCol}>
+        <Text style={[styles.winningStockPercent, { color: isPositive ? "#4CD964" : "#FF3B30" }]}>
+          {isPositive ? "▲" : "▼"} {Math.abs(percentVar).toFixed(2)} %
+        </Text>
+      </View>
+      <View style={styles.winningStockCol}>
+        <Text style={styles.winningStockMarketCap}>{marketCap}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 // Composant pour les secteurs
 const SectorCard = ({ name, icon }: any) => (
@@ -688,150 +702,110 @@ const styles = StyleSheet.create({
     color: "#8B5CF6",
   },
 
-  // Grandes capitalisations
+  // Grandes capitalisations - Affichage en rectangle (grille de cartes)
+  largeCapGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  largeCapCard: {
+    width: "31%",
+    minWidth: 95,
+    backgroundColor: "#1A1A1A",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+    position: "relative",
+  },
+  largeCapRank: {
+    position: "absolute",
+    top: 8,
+    right: 10,
+    fontSize: 32,
+    fontWeight: "300",
+    color: "rgba(255,255,255,0.08)",
+  },
   largeCapIconContainer: {
-    marginBottom: 12,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#2A2A2A",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
-  },
-  largeCapLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  // Modifiez largeCapCard pour ajouter l'effet de pression
-  largeCapCard: {
-    flex: 1,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    // Ajoutez ces propriétés pour un meilleur effet visuel
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  largeCapGrid: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  largeCapIcon: {
-    marginBottom: 12,
-  },
-  largeCapSymbol: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 4,
+    marginBottom: 10,
   },
   largeCapName: {
-    fontSize: 12,
-    color: "#A9A9A9",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  largeCapPrice: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#4CD964",
-    marginBottom: 12,
+    color: "#FFF",
+    marginBottom: 8,
   },
-  largeCapDots: {
+  largeCapChangeContainer: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
-  smallDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#333",
+  changePositive: {},
+  changeNegative: {},
+  largeCapPercent: {
+    fontSize: 14,
+    fontWeight: "600",
   },
 
-  // Actions gagnantes
-  // Actions gagnantes - Styles optimisés
-winningStocksList: {
-  gap: 12,
-},
-winningStockCard: {
-  backgroundColor: '#1A1A1A',
-  borderRadius: 12,
-  padding: 16,
-  flexDirection: 'row',
-  alignItems: 'center',
-  borderWidth: 1,
-  borderColor: 'transparent',
-},
-winningStockLogoContainer: {
-  width: 48,
-  height: 48,
-  borderRadius: 24,
-  backgroundColor: '#2A2A2A',
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginRight: 12,
-  overflow: 'hidden',
-},
-winningStockLogo: {
-  width: 48,
-  height: 48,
-  borderRadius: 24,
-},
-winningStockIcon: {
-  width: 48,
-  height: 48,
-  borderRadius: 24,
-  backgroundColor: 'rgba(76, 217, 100, 0.2)',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-winningStockContent: {
-  flex: 1,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-},
-winningStockLeft: {
-  flex: 1,
-},
-winningStockRight: {
-  alignItems: 'flex-end',
-},
-winningStockSymbol: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#FFF',
-  marginBottom: 4,
-},
-winningStockName: {
-  fontSize: 13,
-  color: '#A9A9A9',
-},
-winningStockPrice: {
-  fontSize: 16,
-  fontWeight: '600',
-  color: '#FFF',
-  marginBottom: 4,
-},
-changeContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: 'rgba(76, 217, 100, 0.15)',
-  paddingHorizontal: 8,
-  paddingVertical: 4,
-  borderRadius: 6,
-},
-changeIcon: {
-  marginRight: 2,
-},
-winningStockChange: {
-  fontSize: 13,
-  fontWeight: '600',
-  color: '#4CD964',
-},
+  // Actions gagnantes - Affichage en liste
+  winningStocksList: {
+    gap: 8,
+  },
+  winningStockCard: {
+    backgroundColor: "#1A1A1A",
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2A2A2A",
+  },
+  winningStockLogoContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#2A2A2A",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    overflow: "hidden",
+  },
+  winningStockContent: {
+    flex: 2,
+  },
+  winningStockName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFF",
+    marginBottom: 2,
+  },
+  winningStockPrice: {
+    fontSize: 13,
+    color: "#A9A9A9",
+  },
+  winningStockCol: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  winningStockDaily: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  winningStockPercent: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  winningStockMarketCap: {
+    fontSize: 12,
+    color: "#A9A9A9",
+  },
 
   // Secteurs
   sectorsScroll: {
