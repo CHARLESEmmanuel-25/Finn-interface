@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   Text,
   View,
@@ -9,13 +9,17 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  FlatList,
+  Keyboard,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LogoImage } from "../components/LogoImage";
-import { fetchStocks, formatPrice, formatMarketCap, type Stock } from "../services/api";
+import { fetchStocks, formatMarketCap, type Stock } from "../services/api";
 
 interface PortfolioCompany {
   symbol: string;
@@ -41,92 +45,62 @@ interface EnrichedPortfolioItem extends PortfolioCompany {
   percentVar: number;
   marketCapNum: number;
   currency: string;
+  quantity: number;
 }
+
+type SortKey = "dailyPercent" | "dailyEuro" | "marketCap" | "name";
+const SORT_LABELS: Record<SortKey, string> = {
+  dailyPercent: "Perf jour - %",
+  dailyEuro: "Perf jour - €",
+  marketCap: "Cap. Bours.",
+  name: "Nom",
+};
 
 export default function Portfolio() {
   const [portfolioCompanies, setPortfolioCompanies] = useState<PortfolioCompany[]>([]);
   const [enrichedItems, setEnrichedItems] = useState<EnrichedPortfolioItem[]>([]);
+  const [allStocks, setAllStocks] = useState<Stock[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Sort
+  const [sortBy, setSortBy] = useState<SortKey>("dailyPercent");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+
+  // Search modal
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // ─── Load portfolio ────────────────────────────────────────────────────────
   const loadPortfolio = async () => {
     try {
       const portfolioData = await AsyncStorage.getItem("portfolio");
-      let companies: PortfolioCompany[] = [];
-      if (portfolioData) {
-        companies = JSON.parse(portfolioData);
-      }
+      let companies: PortfolioCompany[] = portfolioData ? JSON.parse(portfolioData) : [];
       setPortfolioCompanies(companies);
 
-      if (companies.length === 0) {
-        setEnrichedItems([]);
-        return;
-      }
+      if (companies.length === 0) { setEnrichedItems([]); return; }
 
-      try {
-        const stocks = await fetchStocks();
-        const stocksBySymbol = Object.fromEntries(
-          stocks.map((s) => [s.symbol, s])
-        );
+      const stocks = await fetchStocks().catch(() => [] as Stock[]);
+      if (stocks.length) setAllStocks(stocks);
 
-        const enriched: EnrichedPortfolioItem[] = companies.map((c) => {
-          const apiStock = stocksBySymbol[c.symbol] as Stock | undefined;
-          const quantity = c.quantity ?? 1;
-          const currency = apiStock?.currency ?? c.currency ?? "USD";
-
-          if (apiStock) {
-            const dailyChangeEuro = apiStock.currentPrice * (apiStock.percentVar / 100) * quantity;
-            return {
-              ...c,
-              currentPrice: apiStock.currentPrice,
-              percentVar: apiStock.percentVar,
-              marketCapNum: apiStock.marketCap,
-              currency,
-              quantity,
-            };
-          }
-
-          const storedPrice = parseFloat(c.price.replace(/[$,€]/g, "").replace(",", "."));
-          const storedChange = parseFloat(c.change.replace(/[+%]/g, "")) || 0;
-          const dailyChangeEuro = storedPrice * (storedChange / 100) * quantity;
-          return {
-            ...c,
-            currentPrice: storedPrice,
-            percentVar: storedChange,
-            marketCapNum: parseFloat(c.marketCap.replace(/[$,€BMT\s]/g, "")) * 1e9 || 0,
-            currency: c.currency ?? "USD",
-            quantity,
-          };
-        });
-
-        setEnrichedItems(enriched);
-      } catch (apiError) {
-        console.warn("API indisponible, utilisation des données locales:", apiError);
-        const enriched: EnrichedPortfolioItem[] = companies.map((c) => {
-          const storedPrice = parseFloat(c.price.replace(/[$,€]/g, "").replace(",", "."));
-          const storedChange = parseFloat(c.change.replace(/[+%]/g, "")) || 0;
-          const quantity = c.quantity ?? 1;
-          return {
-            ...c,
-            currentPrice: storedPrice,
-            percentVar: storedChange,
-            marketCapNum: parseFloat(c.marketCap.replace(/[$,€BMT\s]/g, "")) * 1e9 || 0,
-            currency: c.currency ?? "USD",
-            quantity,
-          };
-        });
-        setEnrichedItems(enriched);
-      }
-    } catch (error) {
-      console.error("Erreur lors du chargement du portfolio:", error);
+      const bySymbol = Object.fromEntries(stocks.map((s) => [s.symbol, s]));
+      const enriched: EnrichedPortfolioItem[] = companies.map((c) => {
+        const api = bySymbol[c.symbol] as Stock | undefined;
+        const quantity = c.quantity ?? 1;
+        const currency = api?.currency ?? c.currency ?? "USD";
+        if (api) return { ...c, currentPrice: api.currentPrice, percentVar: api.percentVar, marketCapNum: api.marketCap, currency, quantity };
+        const storedPrice = parseFloat(c.price.replace(/[$,€]/g, "").replace(",", ".")) || 0;
+        const storedChange = parseFloat(c.change.replace(/[+%]/g, "")) || 0;
+        return { ...c, currentPrice: storedPrice, percentVar: storedChange, marketCapNum: parseFloat(c.marketCap.replace(/[$,€BMT\s]/g, "")) * 1e9 || 0, currency, quantity };
+      });
+      setEnrichedItems(enriched);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadPortfolio();
-  }, []);
+  useEffect(() => { loadPortfolio(); }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -135,500 +109,330 @@ export default function Portfolio() {
     setRefreshing(false);
   }, []);
 
-  const handleRemoveCompany = (symbol: string) => {
-    Alert.alert(
-      "Retirer du portfolio",
-      `Êtes-vous sûr de vouloir retirer ${symbol} de votre portfolio ?`,
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Retirer",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const updatedPortfolio = portfolioCompanies.filter(
-                (company) => company.symbol !== symbol
-              );
-              await AsyncStorage.setItem("portfolio", JSON.stringify(updatedPortfolio));
-              setPortfolioCompanies(updatedPortfolio);
-              setEnrichedItems((prev) => prev.filter((i) => i.symbol !== symbol));
-            } catch (error) {
-              console.error("Erreur lors de la suppression:", error);
-              Alert.alert("Erreur", "Impossible de retirer l'entreprise du portfolio.");
-            }
-          },
-        },
-      ]
-    );
+  // ─── Remove ────────────────────────────────────────────────────────────────
+  const handleRemove = async (symbol: string) => {
+    const updated = portfolioCompanies.filter((c) => c.symbol !== symbol);
+    await AsyncStorage.setItem("portfolio", JSON.stringify(updated));
+    setPortfolioCompanies(updated);
+    setEnrichedItems((prev) => prev.filter((i) => i.symbol !== symbol));
   };
 
-  const handleCompanyPress = (company: PortfolioCompany) => {
-    router.push({
-      pathname: "/company-profile",
-      params: {
-        symbol: company.symbol,
-        name: company.name,
-        price: company.price,
-        change: company.change,
-        logo: company.logo,
-        location: company.location,
-        website: company.website,
-        about: company.about,
-        marketCap: company.marketCap,
-        shares: company.shares,
-        revenue: company.revenue,
-        eps: company.eps,
-        peRatio: company.peRatio,
-        dividend: company.dividend,
-        currency: company.currency ?? "USD",
-      },
-    } as any);
+  const confirmRemove = (symbol: string, name: string) =>
+    Alert.alert("Retirer du portfolio", `Retirer ${name} ?`, [
+      { text: "Annuler", style: "cancel" },
+      { text: "Retirer", style: "destructive", onPress: () => handleRemove(symbol) },
+    ]);
+
+  const handleRemovePress = (symbol: string, name: string) =>
+    Alert.alert("Retirer du portfolio", `Retirer ${name} ?`, [
+      { text: "Annuler", style: "cancel" },
+      { text: "Retirer", style: "destructive", onPress: () => handleRemove(symbol) },
+    ]);
+
+  // ─── Add from search ───────────────────────────────────────────────────────
+  const handleAddStock = async (stock: Stock) => {
+    const already = portfolioCompanies.find((c) => c.symbol === stock.symbol);
+    if (already) {
+      Alert.alert("Déjà ajouté", `${stock.shortName} est déjà dans votre portfolio.`);
+      return;
+    }
+    const newCompany: PortfolioCompany = {
+      symbol: stock.symbol,
+      name: stock.shortName,
+      price: `${stock.currentPrice}`,
+      change: `${stock.percentVar}%`,
+      logo: stock.logo ?? "",
+      location: stock.country ?? "",
+      website: stock.website ?? "",
+      about: stock.summary ?? "",
+      marketCap: `${stock.marketCap}`,
+      shares: stock.sharesStats.toString() ?? "N/A",
+      revenue: "N/A",
+      eps: stock.EPS?.toString() ?? "N/A",
+      peRatio: stock.PER?.toString() ?? "N/A",
+      dividend: stock.dividendYield ? `${(stock.dividendYield * 100).toFixed(2)}%` : "0.00%",
+      quantity: 1,
+      currency: stock.currency ?? "USD",
+    };
+    const updated = [...portfolioCompanies, newCompany];
+    await AsyncStorage.setItem("portfolio", JSON.stringify(updated));
+    setPortfolioCompanies(updated);
+    setSearchVisible(false);
+    setSearchQuery("");
+    await loadPortfolio();
   };
 
-  const totalValue = enrichedItems.reduce(
-    (sum, item) => sum + item.currentPrice * (item.quantity ?? 1),
-    0
-  );
+  // ─── Navigate ──────────────────────────────────────────────────────────────
+  const handleCompanyPress = (c: PortfolioCompany) =>
+    router.push({ pathname: "/company-profile", params: { ...c, currency: c.currency ?? "USD" } } as any);
 
-  const totalDailyChangeEuro = enrichedItems.reduce(
-    (sum, item) =>
-      sum +
-      item.currentPrice *
-        (item.percentVar / 100) *
-        (item.quantity ?? 1),
-    0
+  // ─── Derived ───────────────────────────────────────────────────────────────
+  const totalValue = enrichedItems.reduce((s, i) => s + i.currentPrice * i.quantity, 0);
+  const totalDailyChange = enrichedItems.reduce(
+    (s, i) => s + i.currentPrice * (i.percentVar / 100) * i.quantity, 0
   );
-
-  const overallDailyPercent =
-    totalValue > 0 ? (totalDailyChangeEuro / totalValue) * 100 : 0;
-  const isPositive = overallDailyPercent >= 0;
-
-  const [sortBy, setSortBy] = useState<"name" | "dailyEuro" | "dailyPercent" | "marketCap">(
-    "dailyPercent"
-  );
-  const [sortAsc, setSortAsc] = useState(false);
+  const overallPercent = totalValue > 0 ? (totalDailyChange / totalValue) * 100 : 0;
+  const portfolioPositive = overallPercent >= 0;
 
   const sortedItems = [...enrichedItems].sort((a, b) => {
     let cmp = 0;
-    switch (sortBy) {
-      case "name":
-        cmp = a.name.localeCompare(b.name);
-        break;
-      case "dailyEuro":
-        cmp =
-          a.currentPrice * (a.percentVar / 100) * (a.quantity ?? 1) -
-          b.currentPrice * (b.percentVar / 100) * (b.quantity ?? 1);
-        break;
-      case "dailyPercent":
-        cmp = a.percentVar - b.percentVar;
-        break;
-      case "marketCap":
-        cmp = a.marketCapNum - b.marketCapNum;
-        break;
-    }
+    if (sortBy === "dailyPercent") cmp = a.percentVar - b.percentVar;
+    else if (sortBy === "dailyEuro")
+      cmp = a.currentPrice * (a.percentVar / 100) * a.quantity -
+        b.currentPrice * (b.percentVar / 100) * b.quantity;
+    else if (sortBy === "marketCap") cmp = a.marketCapNum - b.marketCapNum;
+    else cmp = a.name.localeCompare(b.name);
     return sortAsc ? cmp : -cmp;
   });
 
-  const toggleSort = (col: typeof sortBy) => {
-    if (sortBy === col) setSortAsc(!sortAsc);
-    else {
-      setSortBy(col);
-      setSortAsc(col === "name");
-    }
-  };
+  const filteredStocks = allStocks.filter(
+    (s) =>
+      s.shortName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+      {/* Header */}
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Portfolio</Text>
-        <View style={styles.headerRight} />
+        <Text style={s.headerTitle}>Portfolio</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#8B5CF6"
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" />}
       >
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#8B5CF6" />
-          </View>
+          <View style={s.centered}><ActivityIndicator size="large" color="#8B5CF6" /></View>
         ) : portfolioCompanies.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIcon}>
-              <Ionicons name="briefcase-outline" size={64} color="#666" />
-            </View>
-            <Text style={styles.emptyTitle}>Votre portfolio est vide</Text>
-            <Text style={styles.emptyDescription}>
-              Ajoutez des entreprises à votre portfolio depuis leur page de profil
-            </Text>
-            <TouchableOpacity
-              style={styles.exploreButton}
-              onPress={() => router.push("/")}
-            >
-              <Text style={styles.exploreButtonText}>Explorer les marchés</Text>
-            </TouchableOpacity>
+          <View style={s.emptyContainer}>
+            <Ionicons name="briefcase-outline" size={64} color="#666" style={{ marginBottom: 24 }} />
+            <Text style={s.emptyTitle}>Votre portfolio est vide</Text>
+            <Text style={s.emptyDesc}>Ajoutez des entreprises depuis la recherche</Text>
           </View>
         ) : (
           <>
-            {/* Performance section */}
-            <View style={styles.performanceSection}>
-              <View style={styles.performanceCard}>
-                <View style={styles.performanceHeader}>
-                  <Text style={styles.performanceTitle}>Performance</Text>
-                  <Ionicons name="information-circle-outline" size={20} color="#A9A9A9" />
-                </View>
-                <Text
-                  style={[
-                    styles.performanceValue,
-                    { color: isPositive ? "#4CD964" : "#FF3B30" },
-                  ]}
-                >
-                  {isPositive ? "▲" : "▼"} {Math.abs(overallDailyPercent).toFixed(2)}%
+            {/* Total value — top */}
+            <View style={s.totalCard}>
+              <Text style={s.totalLabel}>Valeur totale</Text>
+              <Text style={s.totalValue}>€{totalValue.toFixed(2)}</Text>
+              <Text style={[s.totalPerf, { color: portfolioPositive ? "#4CD964" : "#FF3B30" }]}>
+                {portfolioPositive ? "▲" : "▼"} {Math.abs(overallPercent).toFixed(2)}%
+                {"  "}
+                <Text style={s.totalPerfSub}>
+                  ({portfolioPositive ? "+" : ""}{totalDailyChange.toFixed(2)} aujourd'hui)
                 </Text>
-                <Text style={styles.performanceSub}>
-                  {isPositive ? "+" : ""}
-                  {totalDailyChangeEuro.toFixed(2)} journalier
-                </Text>
-              </View>
+              </Text>
             </View>
 
-            {/* Table headers */}
-            <View style={styles.tableHeader}>
-              <TouchableOpacity
-                style={[styles.tableColName, styles.tableCol]}
-                onPress={() => toggleSort("name")}
-              >
-                <Text style={styles.tableHeaderText}>Nom</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tableColSmall, styles.tableCol]}
-                onPress={() => toggleSort("dailyEuro")}
-              >
-                <Text style={styles.tableHeaderText}>Quotidienne</Text>
-                {sortBy === "dailyEuro" && (
-                  <Ionicons
-                    name={sortAsc ? "arrow-up" : "arrow-down"}
-                    size={12}
-                    color="#8B5CF6"
-                  />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tableColSmall, styles.tableCol, styles.tableColHighlight]}
-                onPress={() => toggleSort("dailyPercent")}
-              >
-                <Text style={[styles.tableHeaderText, styles.tableHeaderHighlight]}>
-                  Quotidienne (%)
-                </Text>
-                {sortBy === "dailyPercent" && (
-                  <Ionicons
-                    name={sortAsc ? "arrow-up" : "arrow-down"}
-                    size={12}
-                    color="#8B5CF6"
-                  />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tableColCap, styles.tableCol]}
-                onPress={() => toggleSort("marketCap")}
-              >
-                <Text style={styles.tableHeaderText}>Cap. Bours.</Text>
+            {/* Count + sort row */}
+            <View style={s.metaRow}>
+              <Text style={s.metaCount}>
+                {enrichedItems.length} en suivi{" "}
+                <Ionicons name={sortAsc ? "arrow-up" : "arrow-down"} size={13} color="#A9A9A9" />
+              </Text>
+
+              {/* Dropdown trigger */}
+              <TouchableOpacity style={s.sortTrigger} onPress={() => setSortOpen(!sortOpen)}>
+                <Text style={s.sortTriggerText}>{SORT_LABELS[sortBy]}</Text>
+                <Ionicons name={sortOpen ? "chevron-up" : "chevron-down"} size={14} color="#8B5CF6" />
               </TouchableOpacity>
             </View>
+
+            {/* Inline dropdown */}
+            {sortOpen && (
+              <View style={s.dropdown}>
+                {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[s.dropdownItem, sortBy === key && s.dropdownItemActive]}
+                    onPress={() => {
+                      if (sortBy === key) setSortAsc(!sortAsc);
+                      else { setSortBy(key); setSortAsc(false); }
+                      setSortOpen(false);
+                    }}
+                  >
+                    <Text style={[s.dropdownText, sortBy === key && s.dropdownTextActive]}>
+                      {SORT_LABELS[key]}
+                    </Text>
+                    {sortBy === key && (
+                      <Ionicons name={sortAsc ? "arrow-up" : "arrow-down"} size={13} color="#8B5CF6" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Asset list */}
-            <View style={styles.assetList}>
-              {sortedItems.map((item, index) => (
-                <PortfolioRow
-                  key={`${item.symbol}-${index}`}
-                  item={item}
-                  onPress={() => handleCompanyPress(item)}
-                  onRemove={() => handleRemoveCompany(item.symbol)}
-                />
-              ))}
-            </View>
-
-            {/* Total value */}
-            <View style={styles.totalCard}>
-              <Text style={styles.totalLabel}>Valeur totale</Text>
-              <Text style={styles.totalValue}>€{totalValue.toFixed(2)}</Text>
+            <View style={s.list}>
+              {sortedItems.map((item, idx) => {
+                const dailyEuro = item.currentPrice * (item.percentVar / 100) * item.quantity;
+                const pos = item.percentVar >= 0;
+                const sym = item.currency === "EUR" ? "€" : "$";
+                return (
+                  <TouchableOpacity
+                    key={`${item.symbol}-${idx}`}
+                    style={s.row}
+                    onPress={() => handleCompanyPress(item)}
+                    activeOpacity={0.75}
+                    delayPressIn={50}
+                  >
+                    {/* Left */}
+                    <LogoImage logo={item.logo} symbol={item.symbol} name={item.name} size={38} />
+                    <View style={s.rowMid}>
+                      <Text style={s.rowName} numberOfLines={1}>{item.name}</Text>
+                      <Text style={s.rowPrice}>
+                        {item.currentPrice.toFixed(2)} {sym}
+                        {"  ·  "}
+                        <Text style={s.rowQty}>x{item.quantity}</Text>
+                      </Text>
+                    </View>
+                    {/* Right */}
+                    <View style={s.rowRight}>
+                      <Text style={[s.rowPerf, { color: pos ? "#4CD964" : "#FF3B30" }]}>
+                        {pos ? "▲" : "▼"} {Math.abs(item.percentVar).toFixed(2)}%
+                      </Text>
+                      <Text style={[s.rowPerfEuro, { color: pos ? "#4CD964" : "#FF3B30" }]}>
+                        {pos ? "+" : ""}{dailyEuro.toFixed(2)} {sym}
+                      </Text>
+                    </View>
+                    {/* Remove */}
+                    <TouchableOpacity
+                      style={s.removeBtn}
+                      onPress={(e) => { e.stopPropagation?.(); confirmRemove(item.symbol, item.name); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle-outline" size={20} color="#444" />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </>
         )}
-
-        <View style={styles.bottomSpacer} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* FAB Ajouter */}
+      <TouchableOpacity style={s.fab} onPress={() => { setSearchQuery(""); setSearchVisible(true); }}>
+        <Text style={s.fabText}>Ajouter</Text>
+        <Ionicons name="add" size={20} color="#FFF" />
+      </TouchableOpacity>
+
+      {/* Search modal */}
+      <Modal visible={searchVisible} animationType="slide" transparent onRequestClose={() => setSearchVisible(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalSheet}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Ajouter un actif</Text>
+              <TouchableOpacity onPress={() => setSearchVisible(false)}>
+                <Ionicons name="close" size={24} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={s.searchBar}>
+              <Ionicons name="search" size={18} color="#666" style={{ marginRight: 8 }} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Nom ou symbole..."
+                placeholderTextColor="#666"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+              />
+            </View>
+            {allStocks.length === 0 ? (
+              <View style={s.centered}><ActivityIndicator color="#8B5CF6" /></View>
+            ) : (
+              <FlatList
+                data={filteredStocks.slice(0, 50)}
+                keyExtractor={(s) => s.symbol}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => (
+                  <TouchableOpacity style={s.searchRow} onPress={() => handleAddStock(item)}>
+                    <LogoImage logo={item.logo ?? ""} symbol={item.symbol} name={item.shortName} size={34} />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={s.searchName}>{item.shortName}</Text>
+                      <Text style={s.searchSymbol}>{item.symbol}</Text>
+                    </View>
+                    <Text style={s.searchPrice}>{item.currentPrice.toFixed(2)}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const PortfolioRow = ({
-  item,
-  onPress,
-  onRemove,
-}: {
-  item: EnrichedPortfolioItem;
-  onPress: () => void;
-  onRemove: () => void;
-}) => {
-  const dailyEuro =
-    item.currentPrice * (item.percentVar / 100) * (item.quantity ?? 1);
-  const isPositive = item.percentVar >= 0;
-  const currencySymbol = item.currency === "EUR" ? "€" : "$";
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#000" },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 60 },
 
-  return (
-    <TouchableOpacity
-      style={styles.assetRow}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.assetLeft}>
-        <View style={styles.assetLogo}>
-          <LogoImage
-            logo={item.logo}
-            symbol={item.symbol}
-            name={item.name}
-            size={36}
-          />
-        </View>
-        <View style={styles.assetInfo}>
-          <Text style={styles.assetName} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={styles.assetPrice}>
-            {currencySymbol}
-            {item.currentPrice.toFixed(2)}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.assetRight}>
-        <View style={styles.assetCol}>
-          <Text
-            style={[
-              styles.assetDailyEuro,
-              { color: isPositive ? "#4CD964" : "#FF3B30" },
-            ]}
-          >
-            {isPositive ? "▲" : "▼"} {Math.abs(dailyEuro).toFixed(2)} {currencySymbol}
-          </Text>
-        </View>
-        <View style={[styles.assetCol, styles.assetColPercent]}>
-          <Text
-            style={[
-              styles.assetDailyPercent,
-              { color: isPositive ? "#4CD964" : "#FF3B30" },
-            ]}
-          >
-            {isPositive ? "▲" : "▼"} {Math.abs(item.percentVar).toFixed(2)}%
-          </Text>
-        </View>
-        <View style={styles.assetCol}>
-          <Text style={styles.assetMarketCap}>
-            {item.marketCapNum > 0
-              ? formatMarketCap(item.marketCapNum, item.currency)
-              : "-"}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={styles.removeBtn}
-          onPress={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-        >
-          <Ionicons name="close-circle-outline" size={22} color="#666" />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-};
+  // Header
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14 },
+  backBtn: { padding: 6 },
+  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#FFF" },
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  backButton: { padding: 8 },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#FFF",
-  },
-  headerRight: { width: 40 },
-  scrollView: { flex: 1 },
+  // Total card
+  totalCard: { backgroundColor: "#111", marginHorizontal: 16, marginTop: 8, marginBottom: 20, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: "#8B5CF630" },
+  totalLabel: { fontSize: 13, color: "#666", marginBottom: 4 },
+  totalValue: { fontSize: 32, fontWeight: "bold", color: "#FFF", marginBottom: 6 },
+  totalPerf: { fontSize: 15, fontWeight: "600" },
+  totalPerfSub: { fontSize: 13, color: "#A9A9A9", fontWeight: "400" },
 
-  loadingContainer: {
-    padding: 60,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  // Meta row
+  metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 8 },
+  metaCount: { fontSize: 14, color: "#A9A9A9", fontWeight: "500" },
+  sortTrigger: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: "#181820", borderWidth: 1, borderColor: "#8B5CF640" },
+  sortTriggerText: { fontSize: 13, color: "#8B5CF6", fontWeight: "600" },
 
-  performanceSection: {
-    paddingHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 24,
-  },
-  performanceCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: "#8B5CF6",
-  },
-  performanceHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  performanceTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-  performanceValue: {
-    fontSize: 28,
-    fontWeight: "bold",
-  },
-  performanceSub: {
-    fontSize: 14,
-    color: "#A9A9A9",
-    marginTop: 4,
-  },
+  // Dropdown
+  dropdown: { marginHorizontal: 16, marginBottom: 8, backgroundColor: "#181820", borderRadius: 14, borderWidth: 1, borderColor: "#23232c", overflow: "hidden" },
+  dropdownItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 18 },
+  dropdownItemActive: { backgroundColor: "#8B5CF615" },
+  dropdownText: { fontSize: 14, color: "#A9A9A9" },
+  dropdownTextActive: { color: "#8B5CF6", fontWeight: "600" },
 
-  tableHeader: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#2A2A2A",
-    alignItems: "center",
-  },
-  tableCol: { alignItems: "flex-start" },
-  tableColName: { flex: 2 },
-  tableColSmall: { flex: 1 },
-  tableColHighlight: { alignItems: "center" },
-  tableColCap: { flex: 1.2 },
-  tableHeaderText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#A9A9A9",
-  },
-  tableHeaderHighlight: { color: "#8B5CF6" },
+  // List
+  list: { paddingHorizontal: 12 },
+  row: { flexDirection: "row", alignItems: "center", backgroundColor: "#111", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8, borderWidth: 1, borderColor: "#1E1E2A" },
+  rowMid: { flex: 1, marginLeft: 12 },
+  rowName: { fontSize: 15, fontWeight: "600", color: "#FFF", marginBottom: 3 },
+  rowPrice: { fontSize: 12.5, color: "#666" },
+  rowQty: { color: "#8B5CF6", fontWeight: "600" },
+  rowRight: { alignItems: "flex-end", marginRight: 8 },
+  rowPerf: { fontSize: 15, fontWeight: "600", marginBottom: 2 },
+  rowPerfEuro: { fontSize: 12, fontWeight: "500" },
+  removeBtn: { padding: 2 },
 
-  assetList: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    gap: 4,
-  },
-  assetRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#2A2A2A",
-  },
-  assetLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 2,
-  },
-  assetLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#2A2A2A",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-    overflow: "hidden",
-  },
-  assetInfo: { flex: 1 },
-  assetName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-  assetPrice: {
-    fontSize: 13,
-    color: "#A9A9A9",
-    marginTop: 2,
-  },
-  assetRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 3,
-  },
-  assetCol: { flex: 1, alignItems: "flex-end" },
-  assetColPercent: { alignItems: "center" },
-  assetDailyEuro: { fontSize: 13, fontWeight: "600" },
-  assetDailyPercent: { fontSize: 13, fontWeight: "600" },
-  assetMarketCap: { fontSize: 12, color: "#A9A9A9" },
-  removeBtn: { padding: 4, marginLeft: 4 },
+  // Empty
+  emptyContainer: { alignItems: "center", justifyContent: "center", paddingTop: 80, paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: "bold", color: "#FFF", marginBottom: 10, textAlign: "center" },
+  emptyDesc: { fontSize: 14, color: "#A9A9A9", textAlign: "center" },
 
-  totalCard: {
-    backgroundColor: "#1A1A1A",
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  totalLabel: { fontSize: 14, color: "#A9A9A9", marginBottom: 8 },
-  totalValue: { fontSize: 24, fontWeight: "bold", color: "#FFF" },
+  // FAB
+  fab: { position: "absolute", bottom: 30, alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#1C1C1E", paddingVertical: 14, paddingHorizontal: 32, marginRight: 12, borderRadius: 30, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  fabText: { fontSize: 16, fontWeight: "600", color: "#FFF" },
 
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyIcon: { marginBottom: 24 },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  emptyDescription: {
-    fontSize: 14,
-    color: "#A9A9A9",
-    textAlign: "center",
-    marginBottom: 32,
-    lineHeight: 20,
-  },
-  exploreButton: {
-    backgroundColor: "#8B5CF6",
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 25,
-  },
-  exploreButtonText: { fontSize: 16, fontWeight: "600", color: "#FFF" },
-
-  bottomSpacer: { height: 40 },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: "#000000AA", justifyContent: "flex-end" },
+  modalSheet: { backgroundColor: "#111", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingBottom: 40, height: "80%" },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#FFF" },
+  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#1C1C1E", marginHorizontal: 16, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12 },
+  searchInput: { flex: 1, fontSize: 15, color: "#FFF" },
+  searchRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: "#1C1C1E" },
+  searchName: { fontSize: 14, fontWeight: "600", color: "#FFF" },
+  searchSymbol: { fontSize: 12, color: "#666", marginTop: 2 },
+  searchPrice: { fontSize: 14, color: "#A9A9A9", fontWeight: "500" },
 });

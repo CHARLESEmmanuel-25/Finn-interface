@@ -129,10 +129,10 @@ export default function Index() {
     );
   }
 
-  // Obtenir les grandes capitalisations (top 9 par marketCap) - Affichage en rectangle
+  // Obtenir les grandes capitalisations (top 6 par marketCap) - Affichage en rectangle
   const largeCaps = stocks
     .sort((a, b) => b.marketCap - a.marketCap)
-    .slice(0, 9);
+    .slice(0, 6);
 
   // Obtenir les actions gagnantes (top 5 par percentVar positif) - Affichage en liste
   const winningStocks = stocks
@@ -164,9 +164,9 @@ export default function Index() {
                   uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
                 }}
                 style={styles.avatar}
-                // The corrected Image component should come from 'react-native'
-                // If 'Image' is not imported from 'react-native', update the import elsewhere:
-                // import { Image } from 'react-native';
+              // The corrected Image component should come from 'react-native'
+              // If 'Image' is not imported from 'react-native', update the import elsewhere:
+              // import { Image } from 'react-native';
               />
             </TouchableOpacity>
             <View style={styles.userInfo}>
@@ -264,7 +264,7 @@ export default function Index() {
         {/* Section Action gagnantes (Winning Stocks) */}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Action gagnantes</Text>
+          <Text style={styles.sectionTitle}>Actions gagnantes</Text>
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#8B5CF6" />
@@ -357,7 +357,7 @@ export default function Index() {
         {/* Section actions françaises (French Stocks) */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>actions françaises</Text>
+            <Text style={styles.sectionTitle}>Actions françaises</Text>
             <TouchableOpacity onPress={() => router.push("/french-stocks")}>
               <Text style={styles.arrow}>→</Text>
             </TouchableOpacity>
@@ -453,19 +453,19 @@ const WinningStockCard = ({ symbol, name, price, dailyChange, percentVar, market
         <Text style={styles.winningStockName}>{name}</Text>
         <Text style={styles.winningStockPrice}>{price}</Text>
       </View>
-      <View style={styles.winningStockCol}>
+      {/* <View style={styles.winningStockCol}>
         <Text style={[styles.winningStockDaily, { color: isPositive ? "#4CD964" : "#FF3B30" }]}>
           {isPositive ? "▲" : "▼"} {Math.abs(dailyChange).toFixed(2)} {currencySymbol}
         </Text>
-      </View>
+      </View> */}
       <View style={styles.winningStockCol}>
         <Text style={[styles.winningStockPercent, { color: isPositive ? "#4CD964" : "#FF3B30" }]}>
           {isPositive ? "▲" : "▼"} {Math.abs(percentVar).toFixed(2)} %
         </Text>
       </View>
-      <View style={styles.winningStockCol}>
+      {/* <View style={styles.winningStockCol}>
         <Text style={styles.winningStockMarketCap}>{marketCap}</Text>
-      </View>
+      </View> */}
     </TouchableOpacity>
   );
 };
