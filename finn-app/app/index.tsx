@@ -26,6 +26,7 @@ export default function Index() {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -130,18 +131,59 @@ export default function Index() {
   }
 
   // Obtenir les grandes capitalisations (top 6 par marketCap) - Affichage en rectangle
-  const largeCaps = stocks
+  const largeCaps = [...stocks]
     .sort((a, b) => b.marketCap - a.marketCap)
     .slice(0, 6);
 
   // Obtenir les actions gagnantes (top 5 par percentVar positif) - Affichage en liste
-  const winningStocks = stocks
+  const winningStocks = [...stocks]
     .filter(stock => stock.percentVar > 0)
     .sort((a, b) => b.percentVar - a.percentVar)
     .slice(0, 5);
 
   // Obtenir les secteurs principaux (top 4)
   const topSectors = sectors.slice(0, 4);
+
+  // Résultats de recherche (symbol ou nom)
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredStocks =
+    normalizedQuery.length === 0
+      ? []
+      : stocks
+          .filter((stock) =>
+            stock.symbol.toLowerCase().includes(normalizedQuery) ||
+            (stock.shortName &&
+              stock.shortName.toLowerCase().includes(normalizedQuery))
+          )
+          .slice(0, 10);
+
+  // Actions françaises (aperçu pour l'écran d'accueil)
+  const frenchStocksPreview = [
+    {
+      symbol: "MC",
+      name: "LVMH",
+      price: "532,80 €",
+      logo: "https://logo.clearbit.com/lvmh.com",
+    },
+    {
+      symbol: "OR",
+      name: "L'Oréal",
+      price: "368,50 €",
+      logo: "https://logo.clearbit.com/loreal.com",
+    },
+    {
+      symbol: "AIR",
+      name: "Airbus",
+      price: "140,20 €",
+      logo: "https://logo.clearbit.com/airbus.com",
+    },
+    {
+      symbol: "RMS",
+      name: "Hermès",
+      price: "2 026,00 €",
+      logo: "https://logo.clearbit.com/hermes.com",
+    },
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -187,6 +229,10 @@ export default function Index() {
                 style={styles.searchInput}
                 placeholder="Search stocks, symbols, or companies..."
                 placeholderTextColor="#666"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
               />
             </View>
             {/* <TouchableOpacity
@@ -211,6 +257,68 @@ export default function Index() {
             </View>
           </View>
         </View>
+
+        {/* Résultats de recherche */}
+        {searchQuery.trim().length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Résultats pour "{searchQuery.trim()}"
+              </Text>
+            </View>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#8B5CF6" />
+              </View>
+            ) : filteredStocks.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  Aucune action ne correspond à votre recherche
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.winningStocksList}>
+                {filteredStocks.map((stock) => (
+                  <WinningStockCard
+                    key={`search-${stock._id}`}
+                    symbol={stock.symbol}
+                    name={stock.shortName}
+                    price={formatPrice(stock.currentPrice, stock.currency)}
+                    dailyChange={stock.currentPrice * (stock.percentVar / 100)}
+                    percentVar={stock.percentVar}
+                    marketCap={formatMarketCap(stock.marketCap, stock.currency)}
+                    currency={stock.currency}
+                    logo={stock.logo}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/company-profile",
+                        params: {
+                          symbol: stock.symbol,
+                          name: stock.shortName,
+                          price: stock.currentPrice.toString(),
+                          change: stock.percentVar.toString(),
+                          logo: stock.logo || "",
+                          location: stock.country,
+                          website: stock.website,
+                          about: stock.summary,
+                          marketCap: formatMarketCap(stock.marketCap, stock.currency),
+                          shares: formatShares(stock.sharesStats),
+                          revenue: "N/A",
+                          eps: stock.EPS?.toString() || "N/A",
+                          peRatio: stock.PER?.toString() || "N/A",
+                          dividend: stock.dividendYield
+                            ? `${(stock.dividendYield * 100).toFixed(2)}%`
+                            : "0.00%",
+                          currency: stock.currency,
+                        },
+                      } as any)
+                    }
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Section Grandes capitalisation (Large Cap) */}
         <View style={styles.section}>
@@ -359,13 +467,24 @@ export default function Index() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Actions françaises</Text>
             <TouchableOpacity onPress={() => router.push("/french-stocks")}>
-              <Text style={styles.arrow}>→</Text>
+              <Text style={styles.viewMoreText}>voir plus</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.frenchStocksGrid}>
-            <FrenchStockCard symbol="LVMH" name="LVMH" price="€685.20" />
-            <FrenchStockCard symbol="ASML" name="ASML" price="€425.80" />
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.frenchStocksScroll}
+          >
+            {frenchStocksPreview.map((stock) => (
+              <FrenchStockCard
+                key={stock.symbol}
+                symbol={stock.symbol}
+                name={stock.name}
+                price={stock.price}
+                logo={stock.logo}
+              />
+            ))}
+          </ScrollView>
         </View>
 
         {/* Section Actualités (News) */}
@@ -492,10 +611,10 @@ const EventCard = ({ title, date }: any) => (
 );
 
 // Composant pour les actions françaises
-const FrenchStockCard = ({ symbol, name, price }: any) => (
+const FrenchStockCard = ({ symbol, name, price, logo }: any) => (
   <View style={styles.frenchStockCard}>
-    <View style={styles.frenchStockIcon}>
-      <Text style={styles.frenchFlag}>🇫🇷</Text>
+    <View style={styles.frenchStockLogo}>
+      <LogoImage logo={logo} symbol={symbol} name={name} size={32} />
     </View>
     <Text style={styles.frenchStockSymbol}>{symbol}</Text>
     <Text style={styles.frenchStockName}>{name}</Text>
@@ -859,22 +978,19 @@ const styles = StyleSheet.create({
   },
 
   // Actions françaises
-  frenchStocksGrid: {
-    flexDirection: "row",
-    gap: 16,
+  frenchStocksScroll: {
+    paddingLeft: 0,
   },
   frenchStockCard: {
-    flex: 1,
     backgroundColor: "#1A1A1A",
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
+    marginRight: 16,
+    width: 140,
   },
-  frenchStockIcon: {
+  frenchStockLogo: {
     marginBottom: 12,
-  },
-  frenchFlag: {
-    fontSize: 24,
   },
   frenchStockSymbol: {
     fontSize: 16,
