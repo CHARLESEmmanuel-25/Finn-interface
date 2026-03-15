@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Text,
   View,
@@ -18,6 +18,28 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LogoImage } from "../components/LogoImage";
 import { fetchStocks, fetchSectors, formatPrice, formatMarketCap, formatShares, type Stock, type Sector } from "../services/api";
 
+// Nouvelle fonction utilitaire pour faire la recherche via l'API
+async function searchStocksApi(query: string): Promise<Stock[]> {
+  if (!query.trim()) return [];
+  try {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL || ""}/stocks/get`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!response.ok) throw new Error("API error");
+    const results = await response.json();
+    
+    return Array.isArray(results.data) ? results.data : [];
+  } catch (e) {
+    console.error("Erreur lors de la recherche d'actions :", e);
+    return [];
+  }
+}
+
 // const { width } = Dimensions.get('window'); // Utilisé dans les styles
 
 export default function Index() {
@@ -27,12 +49,45 @@ export default function Index() {
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<Stock[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     checkOnboardingStatus();
     checkUserLoginStatus();
     loadData();
   }, []);
+
+  // Gestion du debounce et de la requête API recherche
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    searchTimeoutRef.current = setTimeout(() => {
+      (async () => {
+        try {
+          const results = await searchStocksApi(searchQuery.trim());
+          console.log(results);
+          setSearchResults(results.slice(0, 10));
+        } catch (e) {
+          setSearchResults([]);
+        } finally {
+          setSearchLoading(false);
+        }
+      })();
+    }, 350); // debounce de 350ms
+    // Clean-up
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [searchQuery]);
 
   const loadData = async () => {
     try {
@@ -85,38 +140,38 @@ export default function Index() {
     }
   };
 
-  const handleGoToOnboarding = () => {
-    router.push("/onboarding" as any);
-  };
+  // const handleGoToOnboarding = () => {
+  //   router.push("/onboarding" as any);
+  // };
 
-  const handleResetOnboarding = async () => {
-    try {
-      await AsyncStorage.removeItem("hasSeenOnboarding");
-      router.replace("/onboarding" as any);
-    } catch (error) {
-      console.error("Erreur lors de la réinitialisation:", error);
-    }
-  };
+  // const handleResetOnboarding = async () => {
+  //   try {
+  //     await AsyncStorage.removeItem("hasSeenOnboarding");
+  //     router.replace("/onboarding" as any);
+  //   } catch (error) {
+  //     console.error("Erreur lors de la réinitialisation:", error);
+  //   }
+  // };
 
-  const handleLogout = () => {
-    Alert.alert("Déconnexion", "Êtes-vous sûr de vouloir vous déconnecter ?", [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Déconnexion",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await AsyncStorage.removeItem("isLoggedIn");
-            await AsyncStorage.removeItem("userData");
-            setUserData(null);
-            setIsLoggedIn(false);
-          } catch (error) {
-            console.error("Erreur lors de la déconnexion:", error);
-          }
-        },
-      },
-    ]);
-  };
+  // const handleLogout = () => {
+  //   Alert.alert("Déconnexion", "Êtes-vous sûr de vouloir vous déconnecter ?", [
+  //     { text: "Annuler", style: "cancel" },
+  //     {
+  //       text: "Déconnexion",
+  //       style: "destructive",
+  //       onPress: async () => {
+  //         try {
+  //           await AsyncStorage.removeItem("isLoggedIn");
+  //           await AsyncStorage.removeItem("userData");
+  //           setUserData(null);
+  //           setIsLoggedIn(false);
+  //         } catch (error) {
+  //           console.error("Erreur lors de la déconnexion:", error);
+  //         }
+  //       },
+  //     },
+  //   ]);
+  // };
 
   // Si pas d'utilisateur connecté, ne rien afficher (redirection en cours)
   if (!isLoggedIn || !userData) {
@@ -143,19 +198,6 @@ export default function Index() {
 
   // Obtenir les secteurs principaux (top 4)
   const topSectors = sectors.slice(0, 4);
-
-  // Résultats de recherche (symbol ou nom)
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredStocks =
-    normalizedQuery.length === 0
-      ? []
-      : stocks
-          .filter((stock) =>
-            stock.symbol.toLowerCase().includes(normalizedQuery) ||
-            (stock.shortName &&
-              stock.shortName.toLowerCase().includes(normalizedQuery))
-          )
-          .slice(0, 10);
 
   // Actions françaises (aperçu pour l'écran d'accueil)
   const frenchStocksPreview = [
@@ -206,9 +248,6 @@ export default function Index() {
                   uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
                 }}
                 style={styles.avatar}
-              // The corrected Image component should come from 'react-native'
-              // If 'Image' is not imported from 'react-native', update the import elsewhere:
-              // import { Image } from 'react-native';
               />
             </TouchableOpacity>
             <View style={styles.userInfo}>
@@ -263,14 +302,14 @@ export default function Index() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
-                Résultats pour "{searchQuery.trim()}"
+                Résultats pour &quot;{searchQuery.trim()}&quot;
               </Text>
             </View>
-            {loading ? (
+            {searchLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#8B5CF6" />
               </View>
-            ) : filteredStocks.length === 0 ? (
+            ) : searchResults.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
                   Aucune action ne correspond à votre recherche
@@ -278,13 +317,13 @@ export default function Index() {
               </View>
             ) : (
               <View style={styles.winningStocksList}>
-                {filteredStocks.map((stock) => (
+                {searchResults.map((stock) => (
                   <WinningStockCard
-                    key={`search-${stock._id}`}
+                    key={`search-${stock._id ? stock._id : stock.symbol}`}
                     symbol={stock.symbol}
-                    name={stock.shortName}
+                    name={stock.shortName|| stock.symbol}
                     price={formatPrice(stock.currentPrice, stock.currency)}
-                    dailyChange={stock.currentPrice * (stock.percentVar / 100)}
+                    dailyChange={stock.currentPrice && stock.percentVar ? stock.currentPrice * (stock.percentVar / 100) : 0}
                     percentVar={stock.percentVar}
                     marketCap={formatMarketCap(stock.marketCap, stock.currency)}
                     currency={stock.currency}
@@ -294,13 +333,13 @@ export default function Index() {
                         pathname: "/company-profile",
                         params: {
                           symbol: stock.symbol,
-                          name: stock.shortName,
-                          price: stock.currentPrice.toString(),
-                          change: stock.percentVar.toString(),
+                          name: stock.shortName || stock.symbol,
+                          price: stock.currentPrice?.toString() ?? "N/A",
+                          change: stock.percentVar?.toString() ?? "N/A",
                           logo: stock.logo || "",
-                          location: stock.country,
-                          website: stock.website,
-                          about: stock.summary,
+                          location: stock.country ?? "",
+                          website: stock.website ?? "",
+                          about: stock.summary ?? "",
                           marketCap: formatMarketCap(stock.marketCap, stock.currency),
                           shares: formatShares(stock.sharesStats),
                           revenue: "N/A",
@@ -562,7 +601,7 @@ const LargeCapCard = ({ symbol, name, percentVar, logo, rank, onPress }: any) =>
 // Composant pour les actions gagnantes - Affichage en liste
 const WinningStockCard = ({ symbol, name, price, dailyChange, percentVar, marketCap, currency, logo, onPress }: any) => {
   const isPositive = percentVar >= 0;
-  const currencySymbol = currency === "EUR" ? "€" : "$";
+  // const currencySymbol = currency === "EUR" ? "€" : "$";
   return (
     <TouchableOpacity style={styles.winningStockCard} onPress={onPress}>
       <View style={styles.winningStockLogoContainer}>
