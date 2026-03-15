@@ -230,8 +230,8 @@ export default function Portfolio() {
                 <Text style={s.totalPerfSub}>
                   ({portfolioPositive ? "+" : ""}{totalDailyChange.toFixed(2)} aujourd'hui)
                 </Text>
-              </Text>
-            </View>
+          </Text>
+        </View>
 
             {/* Count + sort row */}
             <View style={s.metaRow}>
@@ -251,7 +251,7 @@ export default function Portfolio() {
             {sortOpen && (
               <View style={s.dropdown}>
                 {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-                  <TouchableOpacity
+            <TouchableOpacity
                     key={key}
                     style={[s.dropdownItem, sortBy === key && s.dropdownItemActive]}
                     onPress={() => {
@@ -266,10 +266,10 @@ export default function Portfolio() {
                     {sortBy === key && (
                       <Ionicons name={sortAsc ? "arrow-up" : "arrow-down"} size={13} color="#8B5CF6" />
                     )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+            </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
             {/* Asset list */}
             <View style={s.list}>
