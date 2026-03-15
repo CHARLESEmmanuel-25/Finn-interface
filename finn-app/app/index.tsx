@@ -10,6 +10,7 @@ import {
   StatusBar,
   Image,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,17 +23,20 @@ import { fetchStocks, fetchSectors, formatPrice, formatMarketCap, formatShares, 
 async function searchStocksApi(query: string): Promise<Stock[]> {
   if (!query.trim()) return [];
   try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL || ""}/stocks/get`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query }),
-    });
+    const response = await fetch(
+      `${process.env.EXPO_PUBLIC_API_BASE_URL || ""}/stocks/get`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query }),
+      }
+    );
 
     if (!response.ok) throw new Error("API error");
     const results = await response.json();
-    
+
     return Array.isArray(results.data) ? results.data : [];
   } catch (e) {
     console.error("Erreur lors de la recherche d'actions :", e);
@@ -53,6 +57,9 @@ export default function Index() {
   const [searchResults, setSearchResults] = useState<Stock[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // -- Modal search state fixes --
+  const [showSearchModal, setShowSearchModal] = useState(false);
+
   useEffect(() => {
     checkOnboardingStatus();
     checkUserLoginStatus();
@@ -62,7 +69,7 @@ export default function Index() {
   // Gestion du debounce et de la requête API recherche
   useEffect(() => {
     if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+      clearTimeout(searchTimeoutRef.current as any);
     }
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -70,7 +77,8 @@ export default function Index() {
       return;
     }
     setSearchLoading(true);
-    searchTimeoutRef.current = setTimeout(() => {
+    // Use window.setTimeout to ensure we get a number for React Native env
+    searchTimeoutRef.current = window.setTimeout(() => {
       (async () => {
         try {
           const results = await searchStocksApi(searchQuery.trim());
@@ -82,10 +90,10 @@ export default function Index() {
           setSearchLoading(false);
         }
       })();
-    }, 350); // debounce de 350ms
+    }, 350) as any; // debounce de 350ms
     // Clean-up
     return () => {
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current as any);
     };
   }, [searchQuery]);
 
@@ -260,28 +268,128 @@ export default function Index() {
             </TouchableOpacity>
           </View>
 
-          {/* Barre de recherche */}
+          {/* Barre de recherche améliorée avec affichage plein écran des résultats dans un Modal */}
           <View style={styles.searchSection}>
-            <View style={styles.searchBar}>
-              <Ionicons name="search" size={20} color="#666" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search stocks, symbols, or companies..."
-                placeholderTextColor="#666"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
-            </View>
-            {/* <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => router.push("/filter" as any)}
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.searchBar}
+              onPress={() => setShowSearchModal(true)}
             >
-              <Ionicons name="options-outline" size={20} color="#FFF" />
-            </TouchableOpacity> */}
+              <Ionicons name="search" size={20} color="#666" />
+              <Text style={[styles.searchInput, { color: searchQuery ? "#000" : "#666" }]}>
+                {searchQuery || "Search stocks, symbols, or companies..."}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Modal plein écran pour la recherche et les résultats */}
+          <Modal
+            animationType="slide"
+            transparent={false}
+            visible={showSearchModal}
+            onRequestClose={() => setShowSearchModal(false)}
+          >
+            <SafeAreaView style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setShowSearchModal(false)}>
+                  <Ionicons name="arrow-back" size={24} color="#333" />
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.modalSearchInput}
+                  placeholder="Search stocks, symbols, or companies..."
+                  placeholderTextColor="#888"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  autoFocus
+                  underlineColorAndroid="transparent"
+                  clearButtonMode="while-editing"
+                  selectionColor="#8B5CF6"
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Ionicons name="close-circle" size={20} color="#bbb" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              {/* Résultats de recherche plein écran */}
+              <View style={styles.modalResultsSection}>
+                {searchQuery.trim().length > 0 ? (
+                  <>
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionTitle}>
+                        Résultats pour &quot;{searchQuery.trim()}&quot;
+                      </Text>
+                    </View>
+                    {searchLoading ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#8B5CF6" />
+                      </View>
+                    ) : searchResults.length === 0 ? (
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>
+                          Aucune action ne correspond à votre recherche
+                        </Text>
+                      </View>
+                    ) : (
+                      <ScrollView style={styles.winningStocksList}>
+                        {searchResults.map((stock) => (
+                          <WinningStockCard
+                            key={`search-${stock._id ? stock._id : stock.symbol}`}
+                            symbol={stock.symbol}
+                            name={stock.shortName || stock.symbol}
+                            price={formatPrice(stock.currentPrice, stock.currency)}
+                            dailyChange={
+                              stock.currentPrice && stock.percentVar
+                                ? stock.currentPrice * (stock.percentVar / 100)
+                                : 0
+                            }
+                            percentVar={stock.percentVar}
+                            marketCap={formatMarketCap(stock.marketCap, stock.currency)}
+                            currency={stock.currency}
+                            logo={stock.logo}
+                            onPress={() => {
+                              setShowSearchModal(false);
+                              router.push({
+                                pathname: "/company-profile",
+                                params: {
+                                  symbol: stock.symbol,
+                                  name: stock.shortName || stock.symbol,
+                                  price: stock.currentPrice?.toString() ?? "N/A",
+                                  change: stock.percentVar?.toString() ?? "N/A",
+                                  logo: stock.logo || "",
+                                  location: stock.country ?? "",
+                                  website: stock.website ?? "",
+                                  about: stock.summary ?? "",
+                                  marketCap: formatMarketCap(stock.marketCap, stock.currency),
+                                  shares: formatShares(stock.sharesStats),
+                                  revenue: "N/A",
+                                  eps: stock.EPS?.toString() || "N/A",
+                                  peRatio: stock.PER?.toString() || "N/A",
+                                  dividend: stock.dividendYield
+                                    ? `${(stock.dividendYield * 100).toFixed(2)}%`
+                                    : "0.00%",
+                                  currency: stock.currency,
+                                },
+                              } as any);
+                            }}
+                          />
+                        ))}
+                      </ScrollView>
+                    )}
+                  </>
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Commencez à taper pour rechercher</Text>
+                  </View>
+                )}
+              </View>
+            </SafeAreaView>
+          </Modal>
         </View>
+
 
         {/* Section information (carrousel) */}
         <View style={styles.infoSection}>
@@ -296,68 +404,6 @@ export default function Index() {
             </View>
           </View>
         </View>
-
-        {/* Résultats de recherche */}
-        {searchQuery.trim().length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Résultats pour &quot;{searchQuery.trim()}&quot;
-              </Text>
-            </View>
-            {searchLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#8B5CF6" />
-              </View>
-            ) : searchResults.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>
-                  Aucune action ne correspond à votre recherche
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.winningStocksList}>
-                {searchResults.map((stock) => (
-                  <WinningStockCard
-                    key={`search-${stock._id ? stock._id : stock.symbol}`}
-                    symbol={stock.symbol}
-                    name={stock.shortName|| stock.symbol}
-                    price={formatPrice(stock.currentPrice, stock.currency)}
-                    dailyChange={stock.currentPrice && stock.percentVar ? stock.currentPrice * (stock.percentVar / 100) : 0}
-                    percentVar={stock.percentVar}
-                    marketCap={formatMarketCap(stock.marketCap, stock.currency)}
-                    currency={stock.currency}
-                    logo={stock.logo}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/company-profile",
-                        params: {
-                          symbol: stock.symbol,
-                          name: stock.shortName || stock.symbol,
-                          price: stock.currentPrice?.toString() ?? "N/A",
-                          change: stock.percentVar?.toString() ?? "N/A",
-                          logo: stock.logo || "",
-                          location: stock.country ?? "",
-                          website: stock.website ?? "",
-                          about: stock.summary ?? "",
-                          marketCap: formatMarketCap(stock.marketCap, stock.currency),
-                          shares: formatShares(stock.sharesStats),
-                          revenue: "N/A",
-                          eps: stock.EPS?.toString() || "N/A",
-                          peRatio: stock.PER?.toString() || "N/A",
-                          dividend: stock.dividendYield
-                            ? `${(stock.dividendYield * 100).toFixed(2)}%`
-                            : "0.00%",
-                          currency: stock.currency,
-                        },
-                      } as any)
-                    }
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-        )}
 
         {/* Section Grandes capitalisation (Large Cap) */}
         <View style={styles.section}>
@@ -799,6 +845,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 10,
   },
+  // Modal-specific styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+    paddingTop: 16,
+    paddingHorizontal: 0,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: "#000",
+  },
+  modalSearchInput: {
+    flex: 1,
+    color: "#F1F1F1",
+    fontSize: 16,
+    backgroundColor: "#222",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 10,
+  },
+  modalResultsSection: {
+    flex: 1,
+    gap: 4,
+    backgroundColor: "#000",
+    padding: 16
+  },
+
   filterButton: {
     backgroundColor: "#8B5CF6",
     borderRadius: 12,
