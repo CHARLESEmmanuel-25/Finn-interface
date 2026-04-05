@@ -25,6 +25,7 @@ import { NewsSection } from "@/components/home/news-section"
 import { WinningStocksSection } from "@/components/home/winning-stocks-section"
 import { LargeCapSection } from "@/components/home/large-cap-section"
 import { PortfolioCard } from "@/components/home/portfolio-card"
+import { ForumSection } from "@/components/home/forum-section"
 
 // Nouvelle fonction utilitaire pour faire la recherche via l'API
 async function searchStocksApi(query: string): Promise<Stock[]> {
@@ -444,6 +445,10 @@ export default function Index() {
           stocks={frenchStocksPreview}
           onPressMore={() => router.push("/french-stocks")}
         />
+
+        <View style={{ padding: 20 }}>
+          <ForumSection />
+        </View>
 
         {/* Section Actualités (News) */}
         <NewsSection />

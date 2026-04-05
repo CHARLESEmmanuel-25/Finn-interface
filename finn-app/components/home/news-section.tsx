@@ -10,7 +10,7 @@ export const NewsSection = () => {
       <View style={styles.list}>
         <NewsListItem
           title="Tesla annonce une nouvelle usine en Europe"
-          source="Reuters"
+          source="Tesla"
         />
 
         <NewsListItem
@@ -20,7 +20,7 @@ export const NewsSection = () => {
 
         <NewsListItem
           title="Apple lance de nouveaux produits"
-          source="TechCrunch"
+          source="AAPL"
         />
       </View>
     </View>
