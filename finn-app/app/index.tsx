@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react"
 import {
   Text,
   View,
@@ -11,17 +11,24 @@ import {
   Image,
   ActivityIndicator,
   Modal,
-} from "react-native";
-import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LogoImage } from "../components/LogoImage";
-import { fetchStocks, fetchSectors, formatPrice, formatMarketCap, formatShares, type Stock, type Sector } from "../services/api";
+} from "react-native"
+import { router } from "expo-router"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+import { Ionicons } from "@expo/vector-icons"
+import { SafeAreaView } from "react-native-safe-area-context"
+import { fetchStocks, fetchSectors, formatPrice, formatMarketCap, formatShares, type Stock, type Sector } from "../services/api"
+import { WinningStockCard } from "@/components/stocks/winning-stock-card"
+import { SectorsSection } from "@/components/home/sectors-section"
+import { EventsSection } from "@/components/home/events-section"
+import { FrenchStocksSection } from "@/components/home/french-stocks-section"
+import { NewsSection } from "@/components/home/news-section"
+import { WinningStocksSection } from "@/components/home/winning-stocks-section"
+import { LargeCapSection } from "@/components/home/large-cap-section"
+import { PortfolioCard } from "@/components/home/portfolio-card"
 
 // Nouvelle fonction utilitaire pour faire la recherche via l'API
 async function searchStocksApi(query: string): Promise<Stock[]> {
-  if (!query.trim()) return [];
+  if (!query.trim()) return []
   try {
     const response = await fetch(
       `${process.env.EXPO_PUBLIC_API_BASE_URL || ""}/stocks/get`,
@@ -32,121 +39,121 @@ async function searchStocksApi(query: string): Promise<Stock[]> {
         },
         body: JSON.stringify({ query }),
       }
-    );
+    )
 
-    if (!response.ok) throw new Error("API error");
-    const results = await response.json();
+    if (!response.ok) throw new Error("API error")
+    const results = await response.json()
 
-    return Array.isArray(results.data) ? results.data : [];
+    return Array.isArray(results.data) ? results.data : []
   } catch (e) {
-    console.error("Erreur lors de la recherche d'actions :", e);
-    return [];
+    console.error("Erreur lors de la recherche d'actions :", e)
+    return []
   }
 }
 
 // const { width } = Dimensions.get('window'); // Utilisé dans les styles
 
 export default function Index() {
-  const [userData, setUserData] = useState<any>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [stocks, setStocks] = useState<Stock[]>([]);
-  const [sectors, setSectors] = useState<Sector[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState<Stock[]>([]);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [userData, setUserData] = useState<any>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [stocks, setStocks] = useState<Stock[]>([])
+  const [sectors, setSectors] = useState<Sector[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchResults, setSearchResults] = useState<Stock[]>([])
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // -- Modal search state fixes --
-  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false)
 
   useEffect(() => {
-    checkOnboardingStatus();
-    checkUserLoginStatus();
-    loadData();
-  }, []);
+    checkOnboardingStatus()
+    checkUserLoginStatus()
+    loadData()
+  }, [])
 
   // Gestion du debounce et de la requête API recherche
   useEffect(() => {
     if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current as any);
+      clearTimeout(searchTimeoutRef.current as any)
     }
     if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setSearchLoading(false);
-      return;
+      setSearchResults([])
+      setSearchLoading(false)
+      return
     }
-    setSearchLoading(true);
+    setSearchLoading(true)
     // Use window.setTimeout to ensure we get a number for React Native env
-    searchTimeoutRef.current = window.setTimeout(() => {
+    searchTimeoutRef.current = setTimeout(() => {
       (async () => {
         try {
-          const results = await searchStocksApi(searchQuery.trim());
-          console.log(results);
-          setSearchResults(results.slice(0, 10));
+          const results = await searchStocksApi(searchQuery.trim())
+          console.log(results)
+          setSearchResults(results.slice(0, 10))
         } catch (e) {
-          setSearchResults([]);
+          setSearchResults([])
         } finally {
-          setSearchLoading(false);
+          setSearchLoading(false)
         }
-      })();
-    }, 350) as any; // debounce de 350ms
+      })()
+    }, 350) as any // debounce de 350ms
     // Clean-up
     return () => {
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current as any);
-    };
-  }, [searchQuery]);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current as any)
+    }
+  }, [searchQuery])
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      setLoading(true)
       const [stocksData, sectorsData] = await Promise.all([
         fetchStocks(),
         fetchSectors(),
-      ]);
-      setStocks(stocksData);
-      setSectors(sectorsData);
+      ])
+      setStocks(stocksData)
+      setSectors(sectorsData)
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
-      Alert.alert('Erreur', 'Impossible de charger les données. Veuillez réessayer.');
+      console.error('Erreur lors du chargement des données:', error)
+      Alert.alert('Erreur', 'Impossible de charger les données. Veuillez réessayer.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const checkUserLoginStatus = async () => {
     try {
-      const loggedIn = await AsyncStorage.getItem("isLoggedIn");
-      const userInfo = await AsyncStorage.getItem("userData");
+      const loggedIn = await AsyncStorage.getItem("isLoggedIn")
+      const userInfo = await AsyncStorage.getItem("userData")
 
       if (loggedIn === "true" && userInfo) {
-        setUserData(JSON.parse(userInfo));
-        setIsLoggedIn(true);
+        setUserData(JSON.parse(userInfo))
+        setIsLoggedIn(true)
       } else {
         // Rediriger vers LoginScreen si pas d'utilisateur connecté
-        router.replace("/login");
+        router.replace("/login")
       }
     } catch (error) {
       console.error(
         "Erreur lors de la vérification du statut de connexion:",
         error
-      );
+      )
       // Rediriger vers LoginScreen en cas d'erreur
-      router.replace("/login");
+      router.replace("/login")
     }
-  };
+  }
 
   const checkOnboardingStatus = async () => {
     try {
-      const hasSeenOnboarding = await AsyncStorage.getItem("hasSeenOnboarding");
+      const hasSeenOnboarding = await AsyncStorage.getItem("hasSeenOnboarding")
       if (!hasSeenOnboarding) {
         // Première fois - rediriger vers l'onboarding
-        router.replace("/onboarding" as any);
+        router.replace("/onboarding" as any)
       }
     } catch (error) {
-      console.error("Erreur lors de la vérification de l'onboarding:", error);
+      console.error("Erreur lors de la vérification de l'onboarding:", error)
     }
-  };
+  }
 
   // const handleGoToOnboarding = () => {
   //   router.push("/onboarding" as any);
@@ -181,31 +188,20 @@ export default function Index() {
   //   ]);
   // };
 
-  // Si pas d'utilisateur connecté, ne rien afficher (redirection en cours)
-  if (!isLoggedIn || !userData) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#000" />
-        <View style={styles.welcomeContainer}>
-          <Text style={styles.title}>Chargement...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   // Obtenir les grandes capitalisations (top 6 par marketCap) - Affichage en rectangle
-  const largeCaps = [...stocks]
-    .sort((a, b) => b.marketCap - a.marketCap)
-    .slice(0, 6);
+  const largeCaps = useMemo(() => {
+    return [...stocks]
+      .sort((a, b) => b.marketCap - a.marketCap)
+      .slice(0, 6)
+  }, [stocks])
 
   // Obtenir les actions gagnantes (top 5 par percentVar positif) - Affichage en liste
-  const winningStocks = [...stocks]
-    .filter(stock => stock.percentVar > 0)
-    .sort((a, b) => b.percentVar - a.percentVar)
-    .slice(0, 5);
-
-  // Obtenir les secteurs principaux (top 4)
-  const topSectors = sectors.slice(0, 4);
+  const winningStocks = useMemo(() => {
+    return [...stocks]
+      .filter(stock => stock.percentVar > 0)
+      .sort((a, b) => b.percentVar - a.percentVar)
+      .slice(0, 5)
+  }, [stocks])
 
   // Actions françaises (aperçu pour l'écran d'accueil)
   const frenchStocksPreview = [
@@ -233,7 +229,19 @@ export default function Index() {
       price: "2 026,00 €",
       logo: "https://logo.clearbit.com/hermes.com",
     },
-  ];
+  ]
+
+  // Si pas d'utilisateur connecté, ne rien afficher (redirection en cours)
+  if (!isLoggedIn || !userData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        <View style={styles.welcomeContainer}>
+          <Text style={styles.title}>Chargement...</Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -304,6 +312,7 @@ export default function Index() {
                   autoCapitalize="none"
                   autoFocus
                   underlineColorAndroid="transparent"
+
                   clearButtonMode="while-editing"
                   selectionColor="#8B5CF6"
                   returnKeyType="search"
@@ -351,7 +360,7 @@ export default function Index() {
                             currency={stock.currency}
                             logo={stock.logo}
                             onPress={() => {
-                              setShowSearchModal(false);
+                              setShowSearchModal(false)
                               router.push({
                                 pathname: "/company-profile",
                                 params: {
@@ -373,7 +382,7 @@ export default function Index() {
                                     : "0.00%",
                                   currency: stock.currency,
                                 },
-                              } as any);
+                              } as any)
                             }}
                           />
                         ))}
@@ -392,7 +401,7 @@ export default function Index() {
 
 
         {/* Section information (carrousel) */}
-        <View style={styles.infoSection}>
+        {/* <View style={styles.infoSection}>
           <View style={styles.infoCard}>
             <View style={styles.infoIcon}>
               <Ionicons name="trending-up" size={32} color="#8B5CF6" />
@@ -403,193 +412,41 @@ export default function Index() {
               <View style={styles.dot} />
             </View>
           </View>
+        </View> */}
+        <View style={{ padding: 20 }}>
+          <PortfolioCard />
         </View>
 
         {/* Section Grandes capitalisation (Large Cap) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Grandes capitalisation</Text>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#8B5CF6" />
-            </View>
-          ) : largeCaps.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Aucune donnée disponible</Text>
-            </View>
-          ) : (
-            <View style={styles.largeCapGrid}>
-              {largeCaps.map((stock, index) => (
-                <LargeCapCard
-                  key={stock._id}
-                  symbol={stock.symbol}
-                  name={stock.shortName}
-                  percentVar={stock.percentVar}
-                  logo={stock.logo}
-                  rank={index + 1}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/company-profile",
-                      params: {
-                        symbol: stock.symbol,
-                        name: stock.shortName,
-                        price: stock.currentPrice.toString(),
-                        change: stock.percentVar.toString(),
-                        logo: stock.logo || "",
-                        location: stock.country,
-                        website: stock.website,
-                        about: stock.summary,
-                        marketCap: formatMarketCap(stock.marketCap, stock.currency),
-                        shares: formatShares(stock.sharesStats),
-                        revenue: "N/A",
-                        eps: stock.EPS?.toString() || "N/A",
-                        peRatio: stock.PER?.toString() || "N/A",
-                        dividend: stock.dividendYield ? `${(stock.dividendYield * 100).toFixed(2)}%` : "0.00%",
-                        currency: stock.currency,
-                      },
-                    } as any)
-                  }
-                />
-              ))}
-            </View>
-          )}
-        </View>
+        <LargeCapSection
+          stocks={largeCaps}
+          loading={loading}
+        />
+
 
         {/* Section Action gagnantes (Winning Stocks) */}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions gagnantes</Text>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#8B5CF6" />
-            </View>
-          ) : winningStocks.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Aucune action gagnante disponible</Text>
-            </View>
-          ) : (
-            <View style={styles.winningStocksList}>
-              {winningStocks.map((stock) => (
-                <WinningStockCard
-                  key={stock._id}
-                  symbol={stock.symbol}
-                  name={stock.shortName}
-                  price={formatPrice(stock.currentPrice, stock.currency)}
-                  dailyChange={stock.currentPrice * (stock.percentVar / 100)}
-                  percentVar={stock.percentVar}
-                  marketCap={formatMarketCap(stock.marketCap, stock.currency)}
-                  currency={stock.currency}
-                  logo={stock.logo}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/company-profile",
-                      params: {
-                        symbol: stock.symbol,
-                        name: stock.shortName,
-                        price: stock.currentPrice.toString(),
-                        change: stock.percentVar.toString(),
-                        logo: stock.logo || "",
-                        location: stock.country,
-                        website: stock.website,
-                        about: stock.summary,
-                        marketCap: formatMarketCap(stock.marketCap, stock.currency),
-                        shares: formatShares(stock.sharesStats),
-                        revenue: "N/A",
-                        eps: stock.EPS?.toString() || "N/A",
-                        peRatio: stock.PER?.toString() || "N/A",
-                        dividend: stock.dividendYield ? `${(stock.dividendYield * 100).toFixed(2)}%` : "0.00%",
-                        currency: stock.currency,
-                      },
-                    } as any)
-                  }
-                />
-              ))}
-            </View>
-          )}
-        </View>
+        <WinningStocksSection
+          stocks={winningStocks}
+          loading={loading}
+        />
 
         {/* Section Secteurs */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Secteurs</Text>
-            <TouchableOpacity
-              onPress={() => router.push("/market-sectors" as any)}
-            >
-              <Text style={styles.viewMoreText}>voir plus</Text>
-            </TouchableOpacity>
-          </View>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#8B5CF6" />
-            </View>
-          ) : topSectors.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Aucun secteur disponible</Text>
-            </View>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.sectorsScroll}
-            >
-              {topSectors.map((sector) => (
-                <SectorCard key={sector._id} name={sector.name} icon={sector.logo || "📊"} />
-              ))}
-            </ScrollView>
-          )}
-        </View>
+        <SectorsSection
+          sectors={sectors}
+          onPressMore={() => router.push("/market-sectors")}
+        />
 
         {/* Section Evenement à venir (Upcoming Events) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Evenement à venir</Text>
-          <View style={styles.eventsGrid}>
-            <EventCard title="Q3 Earnings Call" date="15 Oct" />
-            <EventCard title="Annual Meeting" date="20 Nov" />
-          </View>
-        </View>
+        <EventsSection />
 
         {/* Section actions françaises (French Stocks) */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Actions françaises</Text>
-            <TouchableOpacity onPress={() => router.push("/french-stocks")}>
-              <Text style={styles.viewMoreText}>voir plus</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.frenchStocksScroll}
-          >
-            {frenchStocksPreview.map((stock) => (
-              <FrenchStockCard
-                key={stock.symbol}
-                symbol={stock.symbol}
-                name={stock.name}
-                price={stock.price}
-                logo={stock.logo}
-              />
-            ))}
-          </ScrollView>
-        </View>
+        <FrenchStocksSection
+          stocks={frenchStocksPreview}
+          onPressMore={() => router.push("/french-stocks")}
+        />
 
         {/* Section Actualités (News) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actualités</Text>
-          <View style={styles.newsList}>
-            <NewsListItem
-              title="Tesla annonce une nouvelle usine en Europe"
-              source="Reuters"
-            />
-            <NewsListItem
-              title="Inflation en baisse aux États-Unis"
-              source="Bloomberg"
-            />
-            <NewsListItem
-              title="Apple lance de nouveaux produits"
-              source="TechCrunch"
-            />
-          </View>
-        </View>
+        <NewsSection />
 
         {/* Espace pour la navigation en bas */}
         <View style={styles.bottomSpacer} />
@@ -621,104 +478,9 @@ export default function Index() {
         </TouchableOpacity>
       </View>
     </SafeAreaView>
-  );
+  )
 }
 
-// Composant pour les grandes capitalisations - Affichage en rectangle (grille de cartes)
-const LargeCapCard = ({ symbol, name, percentVar, logo, rank, onPress }: any) => {
-  const isPositive = percentVar >= 0;
-  return (
-    <TouchableOpacity style={styles.largeCapCard} onPress={onPress}>
-      <Text style={styles.largeCapRank}>{rank}</Text>
-      <View style={styles.largeCapIconContainer}>
-        <LogoImage logo={logo} symbol={symbol} name={name} size={36} />
-      </View>
-      <Text style={styles.largeCapName} numberOfLines={2}>{name}</Text>
-      <View style={[styles.largeCapChangeContainer, isPositive ? styles.changePositive : styles.changeNegative]}>
-        <Ionicons name={isPositive ? "arrow-up" : "arrow-down"} size={12} color={isPositive ? "#4CD964" : "#FF3B30"} />
-        <Text style={[styles.largeCapPercent, { color: isPositive ? "#4CD964" : "#FF3B30" }]}>
-          {Math.abs(percentVar).toFixed(2)} %
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-};
-
-// Composant pour les actions gagnantes - Affichage en liste
-const WinningStockCard = ({ symbol, name, price, dailyChange, percentVar, marketCap, currency, logo, onPress }: any) => {
-  const isPositive = percentVar >= 0;
-  // const currencySymbol = currency === "EUR" ? "€" : "$";
-  return (
-    <TouchableOpacity style={styles.winningStockCard} onPress={onPress}>
-      <View style={styles.winningStockLogoContainer}>
-        <LogoImage logo={logo} symbol={symbol} name={name} size={40} />
-      </View>
-      <View style={styles.winningStockContent}>
-        <Text style={styles.winningStockName}>{name}</Text>
-        <Text style={styles.winningStockPrice}>{price}</Text>
-      </View>
-      {/* <View style={styles.winningStockCol}>
-        <Text style={[styles.winningStockDaily, { color: isPositive ? "#4CD964" : "#FF3B30" }]}>
-          {isPositive ? "▲" : "▼"} {Math.abs(dailyChange).toFixed(2)} {currencySymbol}
-        </Text>
-      </View> */}
-      <View style={styles.winningStockCol}>
-        <Text style={[styles.winningStockPercent, { color: isPositive ? "#4CD964" : "#FF3B30" }]}>
-          {isPositive ? "▲" : "▼"} {Math.abs(percentVar).toFixed(2)} %
-        </Text>
-      </View>
-      {/* <View style={styles.winningStockCol}>
-        <Text style={styles.winningStockMarketCap}>{marketCap}</Text>
-      </View> */}
-    </TouchableOpacity>
-  );
-};
-
-// Composant pour les secteurs
-const SectorCard = ({ name, icon }: any) => (
-  <View style={styles.sectorCard}>
-    <View style={styles.sectorIcon}>
-      <Text style={styles.sectorEmoji}>{icon}</Text>
-    </View>
-    <Text style={styles.sectorName}>{name}</Text>
-  </View>
-);
-
-// Composant pour les événements
-const EventCard = ({ title, date }: any) => (
-  <View style={styles.eventCard}>
-    <View style={styles.eventIcon}>
-      <Ionicons name="calendar" size={20} color="#8B5CF6" />
-    </View>
-    <Text style={styles.eventTitle}>{title}</Text>
-    <Text style={styles.eventDate}>{date}</Text>
-  </View>
-);
-
-// Composant pour les actions françaises
-const FrenchStockCard = ({ symbol, name, price, logo }: any) => (
-  <View style={styles.frenchStockCard}>
-    <View style={styles.frenchStockLogo}>
-      <LogoImage logo={logo} symbol={symbol} name={name} size={32} />
-    </View>
-    <Text style={styles.frenchStockSymbol}>{symbol}</Text>
-    <Text style={styles.frenchStockName}>{name}</Text>
-    <Text style={styles.frenchStockPrice}>{price}</Text>
-  </View>
-);
-
-// Composant pour les actualités en liste
-const NewsListItem = ({ title, source }: any) => (
-  <View style={styles.newsListItem}>
-    <View style={styles.newsListIcon}>
-      <Ionicons name="newspaper" size={16} color="#8B5CF6" />
-    </View>
-    <View style={styles.newsListContent}>
-      <Text style={styles.newsListTitle}>{title}</Text>
-      <Text style={styles.newsListSource}>{source}</Text>
-    </View>
-  </View>
-);
 
 const styles = StyleSheet.create({
   container: {
@@ -911,233 +673,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#8B5CF6",
   },
 
-  // Sections
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 16,
-  },
-  viewMoreText: {
-    fontSize: 14,
-    color: "#8B5CF6",
-    fontWeight: "600",
-  },
-  arrow: {
-    fontSize: 18,
-    color: "#8B5CF6",
-  },
-
-  // Grandes capitalisations - Affichage en rectangle (grille de cartes)
-  largeCapGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  largeCapCard: {
-    width: "31%",
-    minWidth: 95,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#2A2A2A",
-    position: "relative",
-  },
-  largeCapRank: {
-    position: "absolute",
-    top: 8,
-    right: 10,
-    fontSize: 32,
-    fontWeight: "300",
-    color: "rgba(255,255,255,0.08)",
-  },
-  largeCapIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#2A2A2A",
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-    marginBottom: 10,
-  },
-  largeCapName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#FFF",
-    marginBottom: 8,
-  },
-  largeCapChangeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  changePositive: {},
-  changeNegative: {},
-  largeCapPercent: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
-  // Actions gagnantes - Affichage en liste
-  winningStocksList: {
-    gap: 8,
-  },
-  winningStockCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#2A2A2A",
-  },
-  winningStockLogoContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#2A2A2A",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-    overflow: "hidden",
-  },
-  winningStockContent: {
-    flex: 2,
-  },
-  winningStockName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-    marginBottom: 2,
-  },
-  winningStockPrice: {
-    fontSize: 13,
-    color: "#A9A9A9",
-  },
-  winningStockCol: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-  winningStockDaily: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  winningStockPercent: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  winningStockMarketCap: {
-    fontSize: 12,
-    color: "#A9A9A9",
-  },
-
-  // Secteurs
-  sectorsScroll: {
-    paddingLeft: 0,
-  },
-  sectorCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginRight: 16,
-    minWidth: 80,
-  },
-  sectorIcon: {
-    marginBottom: 8,
-  },
-  sectorEmoji: {
-    fontSize: 24,
-  },
-  sectorName: {
-    fontSize: 12,
-    color: "#FFF",
-    textAlign: "center",
-  },
-
-  // Événements
-  eventsGrid: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  eventCard: {
-    flex: 1,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-  },
-  eventIcon: {
-    marginBottom: 12,
-  },
-  eventTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#FFF",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  eventDate: {
-    fontSize: 12,
-    color: "#A9A9A9",
-  },
-
-  // Actions françaises
-  frenchStocksScroll: {
-    paddingLeft: 0,
-  },
-  frenchStockCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginRight: 16,
-    width: 140,
-  },
-  frenchStockLogo: {
-    marginBottom: 12,
-  },
-  frenchStockSymbol: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 4,
-  },
-  frenchStockName: {
-    fontSize: 12,
-    color: "#A9A9A9",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  frenchStockPrice: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4CD964",
-  },
-
-  // Actualités en liste
-  newsList: {
-    gap: 12,
-  },
-  newsListItem: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
   newsListIcon: {
     marginRight: 16,
   },
@@ -1194,4 +729,4 @@ const styles = StyleSheet.create({
     color: '#A9A9A9',
     fontSize: 14,
   },
-});
+})
