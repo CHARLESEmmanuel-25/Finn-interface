@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import {
   Text,
   View,
@@ -16,7 +16,7 @@ import { router } from "expo-router"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Ionicons } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { fetchStocks, fetchSectors, formatPrice, formatMarketCap, formatShares, type Stock, type Sector } from "../services/api"
+import { fetchSectors, fetchBigCaps, fetchTopGainers, formatPrice, formatMarketCap, formatShares, type Stock, type Sector } from "../services/api"
 import { WinningStockCard } from "@/components/stocks/winning-stock-card"
 import { SectorsSection } from "@/components/home/sectors-section"
 import { EventsSection } from "@/components/home/events-section"
@@ -57,9 +57,10 @@ async function searchStocksApi(query: string): Promise<Stock[]> {
 export default function Index() {
   const [userData, setUserData] = useState<any>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [stocks, setStocks] = useState<Stock[]>([])
   const [sectors, setSectors] = useState<Sector[]>([])
   const [loading, setLoading] = useState(true)
+  const [bigCaps, setBigCaps] = useState<Stock[]>([])
+  const [topGainers, setTopGainers] = useState<Stock[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<Stock[]>([])
@@ -92,7 +93,7 @@ export default function Index() {
           const results = await searchStocksApi(searchQuery.trim())
           console.log(results)
           setSearchResults(results.slice(0, 10))
-        } catch (e) {
+        } catch {
           setSearchResults([])
         } finally {
           setSearchLoading(false)
@@ -108,12 +109,15 @@ export default function Index() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [stocksData, sectorsData] = await Promise.all([
-        fetchStocks(),
-        fetchSectors(),
-      ])
-      setStocks(stocksData)
+      const sectorsData = await fetchSectors()
       setSectors(sectorsData)
+
+      const [bigCapsRes, gainersRes] = await Promise.allSettled([
+        fetchBigCaps(),
+        fetchTopGainers(5),
+      ])
+      if (bigCapsRes.status === 'fulfilled') setBigCaps(bigCapsRes.value)
+      if (gainersRes.status === 'fulfilled') setTopGainers(gainersRes.value)
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error)
       Alert.alert('Erreur', 'Impossible de charger les données. Veuillez réessayer.')
@@ -188,21 +192,6 @@ export default function Index() {
   //     },
   //   ]);
   // };
-
-  // Obtenir les grandes capitalisations (top 6 par marketCap) - Affichage en rectangle
-  const largeCaps = useMemo(() => {
-    return [...stocks]
-      .sort((a, b) => b.marketCap - a.marketCap)
-      .slice(0, 6)
-  }, [stocks])
-
-  // Obtenir les actions gagnantes (top 5 par percentVar positif) - Affichage en liste
-  const winningStocks = useMemo(() => {
-    return [...stocks]
-      .filter(stock => stock.percentVar > 0)
-      .sort((a, b) => b.percentVar - a.percentVar)
-      .slice(0, 5)
-  }, [stocks])
 
   // Actions françaises (aperçu pour l'écran d'accueil)
   const frenchStocksPreview = [
@@ -351,15 +340,8 @@ export default function Index() {
                             symbol={stock.symbol}
                             name={stock.shortName || stock.symbol}
                             price={formatPrice(stock.currentPrice, stock.currency)}
-                            dailyChange={
-                              stock.currentPrice && stock.percentVar
-                                ? stock.currentPrice * (stock.percentVar / 100)
-                                : 0
-                            }
                             percentVar={stock.percentVar}
-                            marketCap={formatMarketCap(stock.marketCap, stock.currency)}
-                            currency={stock.currency}
-                            logo={stock.logo}
+                            logo={stock.logo ?? undefined}
                             onPress={() => {
                               setShowSearchModal(false)
                               router.push({
@@ -414,20 +396,21 @@ export default function Index() {
             </View>
           </View>
         </View> */}
-        <View style={{ padding: 20 }}>
-          <PortfolioCard />
-        </View>
+        <PortfolioCard
+          totalValue={24830}
+          dailyChange={367}
+          dailyChangePct={1.5}
+        />
 
         {/* Section Grandes capitalisation (Large Cap) */}
         <LargeCapSection
-          stocks={largeCaps}
+          stocks={bigCaps}
           loading={loading}
         />
 
-
         {/* Section Action gagnantes (Winning Stocks) */}
         <WinningStocksSection
-          stocks={winningStocks}
+          stocks={topGainers}
           loading={loading}
         />
 
@@ -490,7 +473,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#0A0A0F",
   },
   welcomeContainer: {
     flex: 1,
@@ -539,7 +522,7 @@ const styles = StyleSheet.create({
   // Interface principale
   scrollView: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#0A0A0F",
   },
   header: {
     paddingHorizontal: 20,
@@ -615,7 +598,7 @@ const styles = StyleSheet.create({
   // Modal-specific styles
   modalContainer: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#0A0A0F",
     paddingTop: 16,
     paddingHorizontal: 0,
   },
@@ -625,7 +608,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
-    backgroundColor: "#000",
+    backgroundColor: "#0A0A0F",
   },
   modalSearchInput: {
     flex: 1,
@@ -640,7 +623,7 @@ const styles = StyleSheet.create({
   modalResultsSection: {
     flex: 1,
     gap: 4,
-    backgroundColor: "#000",
+    backgroundColor: "#0A0A0F",
     padding: 16
   },
 
@@ -733,5 +716,16 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#A9A9A9',
     fontSize: 14,
+  },
+  sectionHeader: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  winningStocksList: {
+    flex: 1,
   },
 })

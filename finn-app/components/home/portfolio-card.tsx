@@ -1,172 +1,174 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from "react-native";
-import { BlurView } from "expo-blur";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-} from "react-native-reanimated";
-import { LineChart } from "react-native-chart-kit";
+import React from 'react'
+import { View, Text, StyleSheet } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { Svg, Polyline } from 'react-native-svg'
+import {
+  glass,
+  PURPLE,
+  GREEN,
+  RED,
+  TEXT_PRIMARY,
+  TEXT_SECONDARY,
+} from '@/constants/glass'
 
-const { width } = Dimensions.get("window");
+interface PortfolioCardProps {
+  totalValue: number
+  dailyChange: number
+  dailyChangePct: number
+  currency?: string
+}
 
-const periods = ["1S", "1M", "1A"];
+const PERIODS = ['1S', '1M', '1A']
 
-const chartData = {
-  labels: [],
-  datasets: [
-    {
-      data: [20, 45, 28, 80, 99, 43, 60],
-      strokeWidth: 2,
-    },
-  ],
-};
+// Points décoratifs simulant une courbe de portefeuille
+const CHART_POINTS = '0,60 40,52 80,58 120,38 160,44 200,28 240,34 280,18 320,22'
 
-export const PortfolioCard = () => {
-  const [activePeriod, setActivePeriod] = useState("1S");
-  const [profit, setProfit] = useState(318);
+function formatValue(value: number, currency: string): string {
+  const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency
+  const abs = Math.abs(value)
+  const formatted = abs.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
+  return `${symbol}${formatted}`
+}
 
-  const scale = useSharedValue(1);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setProfit((p) => p + Math.floor(Math.random() * 5));
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const changePeriod = (period: string) => {
-    setActivePeriod(period);
-
-    scale.value = 0.95;
-    scale.value = withTiming(1, { duration: 250 });
-  };
+export function PortfolioCard({
+  totalValue,
+  dailyChange,
+  dailyChangePct,
+  currency = 'EUR',
+}: PortfolioCardProps) {
+  const isPositive = dailyChange >= 0
+  const changeColor = isPositive ? GREEN : RED
+  const changeArrow = isPositive ? '▲' : '▼'
+  const changeSign = isPositive ? '+' : '−'
 
   return (
-    <BlurView intensity={40} tint="dark" style={styles.blurContainer}>
-      <Animated.View style={[styles.container, animatedStyle]}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Mon portefeuille</Text>
-
-          <View style={styles.periodContainer}>
-            {periods.map((period) => (
-              <TouchableOpacity
-                key={period}
+    <View style={[glass.cardStrong, styles.container]}>
+      {/* Ligne haute */}
+      <View style={styles.header}>
+        <Text style={styles.label}>Mon portefeuille</Text>
+        <View style={styles.pills}>
+          {PERIODS.map((p, i) => (
+            <View
+              key={p}
+              style={[
+                styles.pill,
+                i === 0
+                  ? { backgroundColor: 'rgba(139, 92, 246, 0.15)', borderColor: 'rgba(139, 92, 246, 0.3)', borderWidth: 1 }
+                  : styles.pillInactive,
+              ]}
+            >
+              <Text
                 style={[
-                  styles.periodButton,
-                  activePeriod === period && styles.activePeriod,
+                  styles.pillText,
+                  i === 0 && { color: PURPLE },
                 ]}
-                onPress={() => changePeriod(period)}
               >
-                <Text
-                  style={[
-                    styles.periodText,
-                    activePeriod === period && styles.activePeriodText,
-                  ]}
-                >
-                  {period}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                {p}
+              </Text>
+            </View>
+          ))}
         </View>
+      </View>
 
-        <Text style={styles.amount}>€24 830</Text>
+      {/* Valeur principale */}
+      <Text style={styles.totalValue}>{formatValue(totalValue, currency)}</Text>
 
-        <Text style={styles.growth}>+€{profit} aujourd&apos;hui</Text>
+      {/* Variation du jour */}
+      <Text style={[styles.dailyChange, { color: changeColor }]}>
+        {changeArrow} {changeSign}{formatValue(dailyChange, currency)} aujourd'hui{' '}
+        <Text style={styles.pct}>
+          ({changeSign}{Math.abs(dailyChangePct).toFixed(2)} %)
+        </Text>
+      </Text>
 
-        <LineChart
-          data={chartData}
-          width={width - 80}
-          height={120}
-          withDots={false}
-          withInnerLines={false}
-          withOuterLines={false}
-          withHorizontalLabels={false}
-          withVerticalLabels={false}
-          chartConfig={{
-            backgroundGradientFrom: "transparent",
-            backgroundGradientTo: "transparent",
-            color: () => "#6D5EF6",
-            strokeWidth: 2,
-          }}
-          style={styles.chart}
+      {/* Séparateur */}
+      <View style={styles.separator} />
+
+      {/* Chart area */}
+      <View style={styles.chartArea}>
+        <LinearGradient
+          colors={['rgba(139, 92, 246, 0.25)', 'transparent']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
         />
-      </Animated.View>
-    </BlurView>
-  );
-};
+        <Svg
+          width="100%"
+          height={64}
+          viewBox="0 0 320 64"
+          preserveAspectRatio="none"
+        >
+          <Polyline
+            points={CHART_POINTS}
+            fill="none"
+            stroke={PURPLE}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      </View>
+    </View>
+  )
+}
 
 const styles = StyleSheet.create({
-  blurContainer: {
-    borderRadius: 24,
-    overflow: "hidden",
-    marginVertical: 16,
-  },
-
   container: {
+    marginHorizontal: 16,
     padding: 20,
-    backgroundColor: "#1A1A1A",
   },
-
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-
-  title: {
-    color: "#9E9E9E",
-    fontSize: 14,
-  },
-
-  amount: {
-    color: "white",
-    fontSize: 34,
-    fontWeight: "700",
-    marginTop: 10,
-  },
-
-  growth: {
-    color: "#4ADE80",
-    marginTop: 4,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
-  periodContainer: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 20,
-    padding: 3,
-  },
-
-  periodButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-  },
-
-  activePeriod: {
-    backgroundColor: "#6D5EF6",
-  },
-
-  periodText: {
-    color: "#A1A1AA",
+  label: {
     fontSize: 12,
-    fontWeight: "600",
+    color: TEXT_SECONDARY,
+    letterSpacing: 0.3,
   },
-
-  activePeriodText: {
-    color: "white",
+  pills: {
+    flexDirection: 'row',
+    gap: 6,
   },
-
-  chart: {
-    marginTop: 16,
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
-});
+  pillInactive: {
+    backgroundColor: 'transparent',
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: TEXT_SECONDARY,
+  },
+  totalValue: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    letterSpacing: -0.5,
+  },
+  dailyChange: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  pct: {
+    fontSize: 12,
+    fontWeight: '400',
+    opacity: 0.75,
+  },
+  separator: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    marginVertical: 12,
+  },
+  chartArea: {
+    height: 64,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+})
