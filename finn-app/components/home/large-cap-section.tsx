@@ -95,7 +95,7 @@ function StockCard({ stock, rank }: StockCardProps) {
         logo={stock.logo}
         symbol={stock.symbol}
         name={stock.shortName}
-        size={36}
+        size={28}
       />
 
       {/* Nom */}
@@ -114,10 +114,10 @@ function StockCard({ stock, rank }: StockCardProps) {
 // ─── Section principale ───────────────────────────────────────────────────────
 
 export function LargeCapSection({ stocks, loading = false, onPressMore }: LargeCapSectionProps) {
-  // Découper en rangées de 2
+  // Découper en rangées de 3
   const rows: Stock[][] = []
-  for (let i = 0; i < stocks.length; i += 2) {
-    rows.push(stocks.slice(i, i + 2))
+  for (let i = 0; i < stocks.length; i += 3) {
+    rows.push(stocks.slice(i, i + 3))
   }
 
   return (
@@ -147,11 +147,13 @@ export function LargeCapSection({ stocks, loading = false, onPressMore }: LargeC
                 <StockCard
                   key={stock._id}
                   stock={stock}
-                  rank={rowIndex * 2 + colIndex + 1}
+                  rank={rowIndex * 3 + colIndex + 1}
                 />
               ))}
-              {/* Cellule vide si rangée impaire */}
-              {row.length === 1 && <View style={styles.cardPlaceholder} />}
+              {/* Cellules vides pour compléter la rangée */}
+              {Array.from({ length: 3 - row.length }).map((_, i) => (
+                <View key={`placeholder-${i}`} style={styles.cardPlaceholder} />
+              ))}
             </View>
           ))}
         </View>
@@ -194,39 +196,39 @@ const styles = StyleSheet.create({
   // Card stock
   card: {
     flex: 1,
-    margin: 5,
-    padding: 14,
-    minHeight: 110,
+    margin: 4,
+    padding: 10,
+    minHeight: 96,
     justifyContent: 'flex-start',
   },
   cardPlaceholder: {
     flex: 1,
-    margin: 5,
+    margin: 4,
   },
   rank: {
     position: 'absolute',
-    top: 10,
-    right: 12,
-    fontSize: 12,
+    top: 8,
+    right: 8,
+    fontSize: 10,
     color: TEXT_TERTIARY,
   },
   stockName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     color: TEXT_PRIMARY,
-    marginTop: 8,
-    lineHeight: 18,
+    marginTop: 6,
+    lineHeight: 16,
   },
   perf: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
-    marginTop: 4,
+    marginTop: 3,
   },
   // Skeleton
   skeletonCard: {
     flex: 1,
-    margin: 5,
-    height: 110,
+    margin: 4,
+    height: 96,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
