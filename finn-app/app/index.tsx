@@ -406,6 +406,7 @@ export default function Index() {
         <LargeCapSection
           stocks={bigCaps}
           loading={loading}
+          // onPressMore={() => router.push('/financial-data' as any)}
         />
 
         {/* Section Action gagnantes (Winning Stocks) */}

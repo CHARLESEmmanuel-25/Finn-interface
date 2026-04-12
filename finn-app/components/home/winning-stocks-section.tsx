@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, Animated } from 'react-native'
+import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native'
+import { router } from 'expo-router'
 import { LogoImage } from '@/components/LogoImage'
-import { Stock, formatPrice } from '@/services/api'
+import { Stock, formatPrice, formatMarketCap, formatShares } from '@/services/api'
 import {
   glass,
   GREEN,
@@ -42,8 +43,33 @@ function StockRow({ stock }: { stock: Stock }) {
   const sign = isPositive ? '+' : ''
   const price = formatPrice(stock.currentPrice, stock.currency)
 
+  const handlePress = () => {
+    router.push({
+      pathname: '/company-profile',
+      params: {
+        symbol: stock.symbol,
+        name: stock.shortName || stock.symbol,
+        price: stock.currentPrice?.toString() ?? 'N/A',
+        change: stock.percentVar?.toString() ?? 'N/A',
+        logo: stock.logo || '',
+        location: stock.country ?? '',
+        website: stock.website ?? '',
+        about: stock.summary ?? '',
+        marketCap: formatMarketCap(stock.marketCap, stock.currency),
+        shares: formatShares(stock.sharesStats),
+        revenue: 'N/A',
+        eps: stock.EPS?.toString() || 'N/A',
+        peRatio: stock.PER?.toString() || 'N/A',
+        dividend: stock.dividendYield
+          ? `${(stock.dividendYield * 100).toFixed(2)}%`
+          : '0.00%',
+        currency: stock.currency,
+      },
+    } as any)
+  }
+
   return (
-    <View style={[glass.row, styles.row]}>
+    <TouchableOpacity style={[glass.row, styles.row]} onPress={handlePress} activeOpacity={0.75}>
       <LogoImage
         logo={stock.logo}
         symbol={stock.symbol}
@@ -59,7 +85,7 @@ function StockRow({ stock }: { stock: Stock }) {
       <Text style={[styles.perf, { color: changeColor }]}>
         {arrow} {sign}{pct.toFixed(2)} %
       </Text>
-    </View>
+    </TouchableOpacity>
   )
 }
 

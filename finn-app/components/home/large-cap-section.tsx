@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, Animated } from 'react-native'
+import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native'
+import { router } from 'expo-router'
 import { LogoImage } from '@/components/LogoImage'
-import { Stock } from '@/services/api'
+import { Stock, formatPrice, formatMarketCap, formatShares } from '@/services/api'
 import {
   glass,
   PURPLE,
@@ -15,6 +16,7 @@ import {
 interface LargeCapSectionProps {
   stocks: Stock[]
   loading?: boolean
+  onPressMore?: () => void
 }
 
 // ─── Skeleton card ────────────────────────────────────────────────────────────
@@ -52,13 +54,39 @@ interface StockCardProps {
 }
 
 function StockCard({ stock, rank }: StockCardProps) {
-  const isPositive = stock.percentVar >= 0
+  const pct = stock.percentVar ?? 0
+  const isPositive = pct >= 0
   const changeColor = isPositive ? GREEN : RED
   const changeArrow = isPositive ? '▲' : '▼'
-  const absChange = Math.abs(stock.percentVar).toFixed(2)
+  const absChange = Math.abs(pct).toFixed(2)
+
+  const handlePress = () => {
+    router.push({
+      pathname: '/company-profile',
+      params: {
+        symbol: stock.symbol,
+        name: stock.shortName || stock.symbol,
+        price: stock.currentPrice?.toString() ?? 'N/A',
+        change: stock.percentVar?.toString() ?? 'N/A',
+        logo: stock.logo || '',
+        location: stock.country ?? '',
+        website: stock.website ?? '',
+        about: stock.summary ?? '',
+        marketCap: formatMarketCap(stock.marketCap, stock.currency),
+        shares: formatShares(stock.sharesStats),
+        revenue: 'N/A',
+        eps: stock.EPS?.toString() || 'N/A',
+        peRatio: stock.PER?.toString() || 'N/A',
+        dividend: stock.dividendYield
+          ? `${(stock.dividendYield * 100).toFixed(2)}%`
+          : '0.00%',
+        currency: stock.currency,
+      },
+    } as any)
+  }
 
   return (
-    <View style={[glass.card, styles.card]}>
+    <TouchableOpacity style={[glass.card, styles.card]} onPress={handlePress} activeOpacity={0.75}>
       {/* Rang */}
       <Text style={styles.rank}>#{rank}</Text>
 
@@ -79,13 +107,13 @@ function StockCard({ stock, rank }: StockCardProps) {
       <Text style={[styles.perf, { color: changeColor }]}>
         {changeArrow} {absChange} %
       </Text>
-    </View>
+    </TouchableOpacity>
   )
 }
 
 // ─── Section principale ───────────────────────────────────────────────────────
 
-export function LargeCapSection({ stocks, loading = false }: LargeCapSectionProps) {
+export function LargeCapSection({ stocks, loading = false, onPressMore }: LargeCapSectionProps) {
   // Découper en rangées de 2
   const rows: Stock[][] = []
   for (let i = 0; i < stocks.length; i += 2) {
@@ -97,7 +125,9 @@ export function LargeCapSection({ stocks, loading = false }: LargeCapSectionProp
       {/* En-tête */}
       <View style={styles.header}>
         <Text style={styles.title}>Grandes capitalisations</Text>
-        <Text style={styles.seeMore}>voir plus →</Text>
+        <TouchableOpacity onPress={onPressMore}>
+          <Text style={styles.seeMore}>voir plus →</Text>
+        </TouchableOpacity>
       </View>
 
       {/* États */}

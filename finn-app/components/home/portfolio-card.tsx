@@ -1,5 +1,6 @@
-import React from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import React, { useState } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { router } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Svg, Polyline } from 'react-native-svg'
 import {
@@ -36,23 +37,29 @@ export function PortfolioCard({
   dailyChangePct,
   currency = 'EUR',
 }: PortfolioCardProps) {
+  const [activePeriod, setActivePeriod] = useState(0)
   const isPositive = dailyChange >= 0
   const changeColor = isPositive ? GREEN : RED
   const changeArrow = isPositive ? '▲' : '▼'
   const changeSign = isPositive ? '+' : '−'
 
   return (
-    <View style={[glass.cardStrong, styles.container]}>
+    <TouchableOpacity
+      style={[glass.cardStrong, styles.container]}
+      onPress={() => router.push('/portfolio' as any)}
+      activeOpacity={0.85}
+    >
       {/* Ligne haute */}
       <View style={styles.header}>
         <Text style={styles.label}>Mon portefeuille</Text>
         <View style={styles.pills}>
           {PERIODS.map((p, i) => (
-            <View
+            <TouchableOpacity
               key={p}
+              onPress={(e) => { e.stopPropagation?.(); setActivePeriod(i) }}
               style={[
                 styles.pill,
-                i === 0
+                i === activePeriod
                   ? { backgroundColor: 'rgba(139, 92, 246, 0.15)', borderColor: 'rgba(139, 92, 246, 0.3)', borderWidth: 1 }
                   : styles.pillInactive,
               ]}
@@ -60,12 +67,12 @@ export function PortfolioCard({
               <Text
                 style={[
                   styles.pillText,
-                  i === 0 && { color: PURPLE },
+                  i === activePeriod && { color: PURPLE },
                 ]}
               >
                 {p}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </View>
@@ -108,7 +115,7 @@ export function PortfolioCard({
           />
         </Svg>
       </View>
-    </View>
+    </TouchableOpacity>
   )
 }
 
