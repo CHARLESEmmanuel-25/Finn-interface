@@ -185,6 +185,58 @@ export async function fetchSectorPerformance(): Promise<SectorPerformance[]> {
   }
 }
 
+// ─── Portfolio ────────────────────────────────────────────────────────────────
+
+export interface Portfolio {
+  _id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortfolioPositionPerf {
+  stockId: string;
+  symbol: string;
+  quantity: number;
+  averagePrice: number;
+  currentPrice: number;
+  investedValue: number;
+  currentValue: number;
+  gainLoss: number;
+  gainLossPct: number;
+  currency: string;
+}
+
+export interface PortfolioPerformance {
+  portfolioId: string;
+  investedValue: number;
+  currentValue: number;
+  totalGainLoss: number;
+  totalGainLossPct: number;
+  positions: PortfolioPositionPerf[];
+}
+
+/**
+ * Récupère la liste des portfolios d'un utilisateur
+ */
+export async function fetchUserPortfolios(userId: string): Promise<Portfolio[]> {
+  const response = await fetch(`${API_BASE_URL}/portfolio?userId=${userId}`);
+  if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+  const data = await response.json();
+  return Array.isArray(data) ? data : data.data ?? [];
+}
+
+/**
+ * Récupère la performance (P&L) d'un portfolio
+ */
+export async function fetchPortfolioPerformance(portfolioId: string): Promise<PortfolioPerformance> {
+  const response = await fetch(`${API_BASE_URL}/portfolio/${portfolioId}/performance`);
+  if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+  return response.json();
+}
+
 /**
  * Formate le prix avec la devise
  */
@@ -211,7 +263,8 @@ export function formatMarketCap(marketCap: number, currency: string = 'USD'): st
 /**
  * Formate le nombre d'actions
  */
-export function formatShares(shares: number): string {
+export function formatShares(shares: number | undefined | null): string {
+  if (shares == null || isNaN(shares)) return 'N/A';
   if (shares >= 1e9) {
     return `${(shares / 1e9).toFixed(1)}B`;
   } else if (shares >= 1e6) {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { router } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Svg, Polyline } from 'react-native-svg'
@@ -17,6 +17,7 @@ interface PortfolioCardProps {
   dailyChange: number
   dailyChangePct: number
   currency?: string
+  loading?: boolean
 }
 
 const PERIODS = ['1S', '1M', '1A']
@@ -36,6 +37,7 @@ export function PortfolioCard({
   dailyChange,
   dailyChangePct,
   currency = 'EUR',
+  loading = false,
 }: PortfolioCardProps) {
   const [activePeriod, setActivePeriod] = useState(0)
   const isPositive = dailyChange >= 0
@@ -78,15 +80,19 @@ export function PortfolioCard({
       </View>
 
       {/* Valeur principale */}
-      <Text style={styles.totalValue}>{formatValue(totalValue, currency)}</Text>
-
-      {/* Variation du jour */}
-      <Text style={[styles.dailyChange, { color: changeColor }]}>
-        {changeArrow} {changeSign}{formatValue(dailyChange, currency)} aujourd'hui{' '}
-        <Text style={styles.pct}>
-          ({changeSign}{Math.abs(dailyChangePct).toFixed(2)} %)
-        </Text>
-      </Text>
+      {loading ? (
+        <ActivityIndicator size="small" color={PURPLE} style={{ marginVertical: 16 }} />
+      ) : (
+        <>
+          <Text style={styles.totalValue}>{formatValue(totalValue, currency)}</Text>
+          <Text style={[styles.dailyChange, { color: changeColor }]}>
+            {changeArrow} {changeSign}{formatValue(dailyChange, currency)} P&amp;L total{' '}
+            <Text style={styles.pct}>
+              ({changeSign}{Math.abs(dailyChangePct).toFixed(2)} %)
+            </Text>
+          </Text>
+        </>
+      )}
 
       {/* Séparateur */}
       <View style={styles.separator} />
@@ -122,6 +128,7 @@ export function PortfolioCard({
 const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
+    marginBottom: 24,
     padding: 20,
   },
   header: {

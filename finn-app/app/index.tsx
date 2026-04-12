@@ -16,7 +16,7 @@ import { router } from "expo-router"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Ionicons } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { fetchSectors, fetchBigCaps, fetchTopGainers, formatPrice, formatMarketCap, formatShares, type Stock, type Sector } from "../services/api"
+import { fetchSectors, fetchBigCaps, fetchTopGainers, fetchStocks, formatPrice, formatMarketCap, formatShares, type Stock, type Sector, type PortfolioPerformance } from "../services/api"
 import { WinningStockCard } from "@/components/stocks/winning-stock-card"
 import { SectorsSection } from "@/components/home/sectors-section"
 import { EventsSection } from "@/components/home/events-section"
@@ -61,6 +61,8 @@ export default function Index() {
   const [loading, setLoading] = useState(true)
   const [bigCaps, setBigCaps] = useState<Stock[]>([])
   const [topGainers, setTopGainers] = useState<Stock[]>([])
+  const [portfolioPerf, setPortfolioPerf] = useState<PortfolioPerformance | null>(null)
+  const [portfolioLoading, setPortfolioLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<Stock[]>([])
@@ -73,7 +75,7 @@ export default function Index() {
     checkOnboardingStatus()
     checkUserLoginStatus()
     loadData()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Gestion du debounce et de la requête API recherche
   useEffect(() => {
@@ -106,6 +108,39 @@ export default function Index() {
     }
   }, [searchQuery])
 
+  const loadPortfolioData = async () => {
+    try {
+      setPortfolioLoading(true)
+      const portfolioData = await AsyncStorage.getItem("portfolio")
+      const companies: any[] = portfolioData ? JSON.parse(portfolioData) : []
+      if (companies.length === 0) { setPortfolioPerf(null); return }
+
+      const stocks = await fetchStocks().catch(() => [] as Stock[])
+      const bySymbol: Record<string, Stock> = Object.fromEntries(stocks.map((s) => [s.symbol, s]))
+
+      const enriched = companies.map((c) => {
+        const api = bySymbol[c.symbol]
+        const quantity = c.quantity ?? 1
+        if (api) return { currentPrice: api.currentPrice, percentVar: api.percentVar ?? 0, quantity }
+        const storedPrice = parseFloat(c.price.replace(/[$,€\s]/g, "").replace(",", ".")) || 0
+        const storedChange = parseFloat(c.change.replace(/[+%]/g, "")) || 0
+        return { currentPrice: storedPrice, percentVar: storedChange, quantity }
+      })
+
+      const currentValue = enriched.reduce((s, i) => s + i.currentPrice * i.quantity, 0)
+      const totalGainLoss = enriched.reduce(
+        (s, i) => s + i.currentPrice * (i.percentVar / 100) * i.quantity, 0
+      )
+      const totalGainLossPct = currentValue > 0 ? (totalGainLoss / currentValue) * 100 : 0
+
+      setPortfolioPerf({ portfolioId: '', investedValue: currentValue, currentValue, totalGainLoss, totalGainLossPct, positions: [] })
+    } catch (error) {
+      console.error('Erreur chargement portfolio:', error)
+    } finally {
+      setPortfolioLoading(false)
+    }
+  }
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -116,7 +151,7 @@ export default function Index() {
         fetchBigCaps(),
         fetchTopGainers(5),
       ])
-      if (bigCapsRes.status === 'fulfilled') setBigCaps(bigCapsRes.value)
+      if (bigCapsRes.status === 'fulfilled') setBigCaps(bigCapsRes.value.slice(0, 6))
       if (gainersRes.status === 'fulfilled') setTopGainers(gainersRes.value)
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error)
@@ -132,8 +167,10 @@ export default function Index() {
       const userInfo = await AsyncStorage.getItem("userData")
 
       if (loggedIn === "true" && userInfo) {
-        setUserData(JSON.parse(userInfo))
+        const parsed = JSON.parse(userInfo)
+        setUserData(parsed)
         setIsLoggedIn(true)
+        loadPortfolioData()
       } else {
         // Rediriger vers LoginScreen si pas d'utilisateur connecté
         router.replace("/login")
@@ -397,9 +434,10 @@ export default function Index() {
           </View>
         </View> */}
         <PortfolioCard
-          totalValue={24830}
-          dailyChange={367}
-          dailyChangePct={1.5}
+          totalValue={portfolioPerf?.currentValue ?? 0}
+          dailyChange={portfolioPerf?.totalGainLoss ?? 0}
+          dailyChangePct={portfolioPerf?.totalGainLossPct ?? 0}
+          loading={portfolioLoading}
         />
 
         {/* Section Grandes capitalisation (Large Cap) */}
