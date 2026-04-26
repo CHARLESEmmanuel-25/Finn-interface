@@ -9,6 +9,7 @@ export interface Stock {
   shortName: string;
   currentPrice: number;
   percentVar: number;
+  perf_day?: number;
   marketCap: number;
   currency: string;
   sector: string;

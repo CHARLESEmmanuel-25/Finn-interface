@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native'
+import Svg, { Polyline } from 'react-native-svg'
 import { router } from 'expo-router'
 import { LogoImage } from '@/components/LogoImage'
 import { Stock, formatPrice, formatMarketCap, formatShares } from '@/services/api'
@@ -14,6 +15,51 @@ import {
 interface WinningStocksSectionProps {
   stocks: Stock[]
   loading?: boolean
+}
+
+// ─── Mini sparkline ───────────────────────────────────────────────────────────
+
+const SPARK_W = 52
+const SPARK_H = 26
+
+function generateSparkPoints(pct: number, count = 9): number[] {
+  const points: number[] = []
+  let val = 50
+  const seed = Math.abs((pct * 137.5) % 100)
+  for (let i = 0; i < count; i++) {
+    const trend = pct / count
+    const noise = ((seed * (i + 1) * 7.3) % 8) - 4
+    val += trend + noise * 0.4
+    points.push(val)
+  }
+  return points
+}
+
+function MiniSparkline({ pct, color }: { pct: number; color: string }) {
+  const pts = generateSparkPoints(pct)
+  const min = Math.min(...pts)
+  const max = Math.max(...pts)
+  const range = max - min || 1
+  const coords = pts
+    .map((v, i) => {
+      const x = (i / (pts.length - 1)) * SPARK_W
+      const y = SPARK_H - ((v - min) / range) * (SPARK_H - 6) - 3
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+
+  return (
+    <Svg width={SPARK_W} height={SPARK_H}>
+      <Polyline
+        points={coords}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </Svg>
+  )
 }
 
 // ─── Skeleton row ─────────────────────────────────────────────────────────────
@@ -36,7 +82,7 @@ function SkeletonRow() {
 // ─── Stock row ────────────────────────────────────────────────────────────────
 
 function StockRow({ stock }: { stock: Stock }) {
-  const pct = stock.percentVar ?? 0
+  const pct = stock.perf_day ?? 0
   const isPositive = pct >= 0
   const changeColor = isPositive ? GREEN : RED
   const arrow = isPositive ? '▲' : '▼'
@@ -78,13 +124,18 @@ function StockRow({ stock }: { stock: Stock }) {
       />
 
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>{stock.shortName}</Text>
-        <Text style={styles.sub}>{stock.symbol} · {price}</Text>
+        <Text style={styles.name} numberOfLines={2}>
+          {stock.shortName}
+        </Text>
+        <Text style={styles.sub} numberOfLines={1}>{stock.symbol} · {price}</Text>
       </View>
 
-      <Text style={[styles.perf, { color: changeColor }]}>
-        {arrow} {sign}{pct.toFixed(2)} %
-      </Text>
+      <View style={styles.sparkWrap}>
+        <MiniSparkline pct={pct} color={changeColor} />
+        <Text style={[styles.perf, { color: changeColor }]}>
+          {arrow} {sign}{pct.toFixed(2)}%
+        </Text>
+      </View>
     </TouchableOpacity>
   )
 }
@@ -164,20 +215,33 @@ const styles = StyleSheet.create({
   info: {
     flex: 1,
     marginLeft: 12,
+    minWidth: 0,
+    overflow: 'hidden',
   },
   name: {
     fontSize: 14,
     fontWeight: '700',
     color: TEXT_PRIMARY,
+    flexShrink: 1,
   },
   sub: {
     fontSize: 12,
     color: TEXT_SECONDARY,
     marginTop: 2,
+    flexShrink: 1,
+  },
+  sparkWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 8,
   },
   perf: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: '700',
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    padding: 4,
+    borderRadius: 4
   },
   // Skeleton
   skeletonRow: {

@@ -8,8 +8,8 @@ export const EventsSection = () => {
       <Text style={styles.title}>Evenements à venir</Text>
 
       <View style={styles.grid}>
-        <EventCard title="Q3 Earnings Call" date="15 Oct" />
-        <EventCard title="Annual Meeting" date="20 Nov" />
+        <EventCard title="Q3 Earnings Call" date="15 Oct" symbol="AAPL" />
+        <EventCard title="Annual Meeting" date="20 Nov" symbol="MSFT" />
       </View>
     </View>
   );
