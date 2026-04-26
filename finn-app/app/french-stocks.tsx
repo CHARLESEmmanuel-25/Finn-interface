@@ -18,6 +18,7 @@ export default function FrenchStocks() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<FilterCategory>("Larges Caps");
   const [showFilters, setShowFilters] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   // Filtres pour chaque catégorie
   const [filters, setFilters] = useState({
@@ -374,14 +375,18 @@ export default function FrenchStocks() {
 
       {/* Search Bar */}
       <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#666" />
+        <View style={[styles.searchBar, searchFocused && styles.searchBarFocused]}>
+          <Ionicons name="search" size={20} color={searchFocused ? "#8B5CF6" : "#666"} />
           <TextInput
             style={styles.searchInput}
             placeholder="Rechercher une action..."
             placeholderTextColor="#666"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            selectionColor="#8B5CF6"
+            underlineColorAndroid="transparent"
           />
         </View>
         <TouchableOpacity
@@ -655,13 +660,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  searchBarFocused: {
+    borderColor: "rgba(139, 92, 246, 0.4)",
   },
   searchInput: {
     flex: 1,
     color: "#FFF",
     fontSize: 16,
     marginLeft: 10,
-  },
+    outlineStyle: "none",
+  } as any,
   filterButton: {
     backgroundColor: "#8B5CF6",
     borderRadius: 12,

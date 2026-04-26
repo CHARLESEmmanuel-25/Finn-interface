@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef, useCallback } from "react"
 import {
   Text,
   View,
@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Modal,
 } from "react-native"
-import { router } from "expo-router"
+import { router, useFocusEffect } from "expo-router"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Ionicons } from "@expo/vector-icons"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -76,6 +76,12 @@ export default function Index() {
     checkUserLoginStatus()
     loadData()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isLoggedIn) loadPortfolioData()
+    }, [isLoggedIn])
+  )
 
   // Gestion du debounce et de la requête API recherche
   useEffect(() => {
@@ -658,7 +664,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginHorizontal: 10,
-  },
+    outlineStyle: "none",
+  } as any,
   modalResultsSection: {
     flex: 1,
     gap: 4,
