@@ -1,2 +1,5 @@
 CLAUDE.md
-/CLAUDE.mdCLAUDE.md
+.DS_Store
+.cursor/
+.vscode/
+.claude/

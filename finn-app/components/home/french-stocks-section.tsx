@@ -34,7 +34,7 @@ export const FrenchStocksSection: React.FC<Props> = ({
             symbol={stock.symbol}
             name={stock.name}
             price={stock.price}
-            logo={stock.logo}
+            change={stock.change}
           />
         ))}
       </ScrollView>

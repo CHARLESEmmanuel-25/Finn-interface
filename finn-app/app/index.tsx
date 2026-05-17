@@ -238,30 +238,10 @@ export default function Index() {
 
   // Actions françaises (aperçu pour l'écran d'accueil)
   const frenchStocksPreview = [
-    {
-      symbol: "MC",
-      name: "LVMH",
-      price: "532,80 €",
-      logo: "https://logo.clearbit.com/lvmh.com",
-    },
-    {
-      symbol: "OR",
-      name: "L'Oréal",
-      price: "368,50 €",
-      logo: "https://logo.clearbit.com/loreal.com",
-    },
-    {
-      symbol: "AIR",
-      name: "Airbus",
-      price: "140,20 €",
-      logo: "https://logo.clearbit.com/airbus.com",
-    },
-    {
-      symbol: "RMS",
-      name: "Hermès",
-      price: "2 026,00 €",
-      logo: "https://logo.clearbit.com/hermes.com",
-    },
+    { symbol: "MC",  name: "LVMH",    price: "532,80 €",         change: 0.91  },
+    { symbol: "OR",  name: "L'Oréal", price: "368,50 €",         change: 0.45  },
+    { symbol: "AIR", name: "Airbus",  price: "161,22 €",         change: -0.32 },
+    { symbol: "RMS", name: "Hermès",  price: "2 026,00 €",  change: 1.12  },
   ]
 
   // Si pas d'utilisateur connecté, ne rien afficher (redirection en cours)

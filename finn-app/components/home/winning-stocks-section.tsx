@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native'
-import Svg, { Polyline } from 'react-native-svg'
+import Svg, { Polyline, Path, Line, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg'
 import { router } from 'expo-router'
 import { LogoImage } from '@/components/LogoImage'
 import { Stock, formatPrice, formatMarketCap, formatShares } from '@/services/api'
@@ -19,17 +19,17 @@ interface WinningStocksSectionProps {
 
 // ─── Mini sparkline ───────────────────────────────────────────────────────────
 
-const SPARK_W = 52
-const SPARK_H = 26
+const SPARK_W = 64
+const SPARK_H = 36
 
-function generateSparkPoints(pct: number, count = 9): number[] {
+function generateSparkPoints(pct: number, count = 20): number[] {
   const points: number[] = []
   let val = 50
   const seed = Math.abs((pct * 137.5) % 100)
   for (let i = 0; i < count; i++) {
     const trend = pct / count
-    const noise = ((seed * (i + 1) * 7.3) % 8) - 4
-    val += trend + noise * 0.4
+    const noise = ((seed * (i + 1) * 7.3) % 12) - 6
+    val += trend + noise * 0.5
     points.push(val)
   }
   return points
@@ -40,21 +40,53 @@ function MiniSparkline({ pct, color }: { pct: number; color: string }) {
   const min = Math.min(...pts)
   const max = Math.max(...pts)
   const range = max - min || 1
-  const coords = pts
-    .map((v, i) => {
-      const x = (i / (pts.length - 1)) * SPARK_W
-      const y = SPARK_H - ((v - min) / range) * (SPARK_H - 6) - 3
-      return `${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(' ')
+  const PAD = 4
+
+  const toXY = (v: number, i: number) => {
+    const x = (i / (pts.length - 1)) * SPARK_W
+    const y = SPARK_H - PAD - ((v - min) / range) * (SPARK_H - PAD * 2)
+    return { x, y }
+  }
+
+  const coords = pts.map((v, i) => {
+    const { x, y } = toXY(v, i)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+
+  // area path: line + close to bottom
+  const first = toXY(pts[0], 0)
+  const last = toXY(pts[pts.length - 1], pts.length - 1)
+  const areaPath = `M ${first.x.toFixed(1)},${first.y.toFixed(1)} ${
+    pts.map((v, i) => { const p = toXY(v, i); return `L ${p.x.toFixed(1)},${p.y.toFixed(1)}` }).join(' ')
+  } L ${last.x.toFixed(1)},${SPARK_H} L ${first.x.toFixed(1)},${SPARK_H} Z`
+
+  const gradId = `sg_${pct > 0 ? 'pos' : 'neg'}`
 
   return (
     <Svg width={SPARK_W} height={SPARK_H}>
+      <Defs>
+        <SvgGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity="0.45" />
+          <Stop offset="1" stopColor={color} stopOpacity="0" />
+        </SvgGradient>
+      </Defs>
+      {/* area fill */}
+      <Path d={areaPath} fill={`url(#${gradId})`} />
+      {/* baseline */}
+      <Line
+        x1="0" y1={SPARK_H - 1}
+        x2={SPARK_W} y2={SPARK_H - 1}
+        stroke={color}
+        strokeWidth={1}
+        strokeDasharray="3,3"
+        strokeOpacity={0.4}
+      />
+      {/* line */}
       <Polyline
         points={coords}
         fill="none"
         stroke={color}
-        strokeWidth={1.5}
+        strokeWidth={1.8}
         strokeLinejoin="round"
         strokeLinecap="round"
       />
@@ -124,15 +156,15 @@ function StockRow({ stock }: { stock: Stock }) {
       />
 
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={2}>
-          {stock.shortName}
-        </Text>
-        <Text style={styles.sub} numberOfLines={1}>{stock.symbol} · {price}</Text>
+        <Text style={styles.name} numberOfLines={1}>{stock.symbol}</Text>
+        <Text style={styles.sub} numberOfLines={2}>{stock.shortName}</Text>
       </View>
 
+      <MiniSparkline pct={pct} color={changeColor} />
+
       <View style={styles.sparkWrap}>
-        <MiniSparkline pct={pct} color={changeColor} />
-        <Text style={[styles.perf, { color: changeColor }]}>
+        <Text style={styles.price}>{price}</Text>
+        <Text style={[styles.perf, { color: changeColor, backgroundColor: isPositive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
           {arrow} {sign}{pct.toFixed(2)}%
         </Text>
       </View>
@@ -225,21 +257,26 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   sub: {
-    fontSize: 12,
+    fontSize: 11,
     color: TEXT_SECONDARY,
-    marginTop: 2,
+    marginTop: 1,
     flexShrink: 1,
   },
   sparkWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 4,
     marginLeft: 8,
+    minWidth: 70,
+  },
+  price: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: TEXT_PRIMARY,
   },
   perf: {
     fontSize: 12,
     fontWeight: '700',
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
     padding: 4,
     borderRadius: 4
   },

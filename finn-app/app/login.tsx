@@ -10,23 +10,73 @@ import {
   StatusBar,
 } from 'react-native';
 
-// Importation des icônes : nous utiliserons Ionicons et Feather
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loginUser, registerUser } from '@/services/api';
 
 // Dimensions pour une mise en page plus réactive
 const { width } = Dimensions.get('window');
 
+type CustomTextInputProps = {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  iconName: keyof typeof Feather.glyphMap;
+  isPassword?: boolean;
+  isVisible?: boolean;
+  toggleVisibility?: () => void;
+  error?: string;
+  keyboardType?: string;
+};
+
+const CustomTextInput: React.FC<CustomTextInputProps> = ({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  iconName,
+  isPassword = false,
+  isVisible = false,
+  toggleVisibility,
+  error,
+  keyboardType,
+}) => (
+  <View style={styles.formGroup}>
+    <Text style={styles.label}>{label}</Text>
+    <View style={[styles.inputContainer, error && styles.inputError]}>
+      <Feather name={iconName} size={20} color={error ? "#FF3B30" : "#666"} style={styles.inputIcon} />
+      <TextInput
+        style={styles.input}
+        placeholder={placeholder}
+        placeholderTextColor="#666"
+        value={value}
+        onChangeText={onChangeText}
+        secureTextEntry={isPassword && !isVisible}
+        keyboardAppearance="dark"
+        keyboardType={keyboardType as any}
+      />
+      {isPassword && (
+        <TouchableOpacity onPress={toggleVisibility} style={styles.visibilityToggle}>
+          <Feather name={isVisible ? "eye" : "eye-off"} size={20} color="#666" />
+        </TouchableOpacity>
+      )}
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+);
+
 const LoginScreen = () => {
-  const [fullName, setFullName] = useState('Moustapha Mbaye');
-  const [email, setEmail] = useState('moustapha@gmail.com');
-  const [password, setPassword] = useState('Simpa@2025');
-  const [confirmPassword, setConfirmPassword] = useState('Simpa@2025');
+  const [isSignInMode, setIsSignInMode] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
-  const [agreedToTerms, setAgreedToTerms] = useState(true);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   
@@ -39,161 +89,106 @@ const LoginScreen = () => {
   };
   const passwordStrength = getPasswordStrength(password);
 
-  // Validation des champs
-  const validateForm = () => {
+  const validateRegisterForm = () => {
     const newErrors: {[key: string]: string} = {};
-    
-    if (!fullName.trim()) {
-      newErrors.fullName = 'Le nom complet est requis';
-    }
-    
+    if (!fullName.trim()) newErrors.fullName = 'Le nom complet est requis';
     if (!email.trim()) {
-      newErrors.email = 'L\'email est requis';
+      newErrors.email = "L'email est requis";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Format d\'email invalide';
+      newErrors.email = "Format d'email invalide";
     }
-    
     if (!password) {
       newErrors.password = 'Le mot de passe est requis';
     } else if (password.length < 6) {
       newErrors.password = 'Le mot de passe doit contenir au moins 6 caractères';
     }
-    
     if (!confirmPassword) {
       newErrors.confirmPassword = 'Confirmer le mot de passe est requis';
     } else if (password !== confirmPassword) {
       newErrors.confirmPassword = 'Les mots de passe ne correspondent pas';
     }
-    
-    if (!agreedToTerms) {
-      newErrors.terms = 'Vous devez accepter les conditions d\'utilisation';
-    }
-    
+    if (!agreedToTerms) newErrors.terms = "Vous devez accepter les conditions d'utilisation";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  const saveSession = async (user: { _id: string; firstName: string; lastName: string; email: string }) => {
+    const userData = {
+      fullName: `${user.firstName} ${user.lastName}`.trim(),
+      email: user.email,
+      userId: user._id,
+    };
+    await AsyncStorage.multiSet([
+      ['userData', JSON.stringify(userData)],
+      ['userId', user._id],
+      ['isLoggedIn', 'true'],
+    ]);
+  };
+
   const handleCreateAccount = async () => {
-    if (!validateForm()) {
-      return;
-    }
-    
+    if (!validateRegisterForm()) return;
     setIsLoading(true);
-    
     try {
-      // Simuler une création de compte (remplacez par votre logique d'API)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Sauvegarder les informations utilisateur
-      const userData = {
-        fullName: fullName.trim(),
-        email: email.trim(),
-        createdAt: new Date().toISOString(),
-      };
-      
-      await AsyncStorage.setItem('userData', JSON.stringify(userData));
-      await AsyncStorage.setItem('isLoggedIn', 'true');
-      
-      // Navigation vers la page d'accueil
+      const nameParts = fullName.trim().split(' ');
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ') || nameParts[0];
+      const user = await registerUser({ firstName, lastName, email: email.trim(), password });
+      await saveSession(user);
       router.replace('/');
-      
-    } catch (error) {
-      console.error('Erreur lors de la création du compte:', error);
-      setErrors({ general: 'Une erreur est survenue. Veuillez réessayer.' });
+    } catch (error: any) {
+      setErrors({ general: error.message || 'Une erreur est survenue. Veuillez réessayer.' });
     } finally {
       setIsLoading(false);
     }
   };
-  
-  const handleSignIn = () => {
-    console.log('Naviguer vers Sign In');
-    router.push('/'); // À décommenter avec React Navigation
-  };
-  
-  const handleBack = () => {
-    console.log('Retour en arrière');
-    router.back(); // À décommenter avec React Navigation
+
+  const handleLogin = async () => {
+    const newErrors: {[key: string]: string} = {};
+    if (!email.trim()) newErrors.email = "L'email est requis";
+    if (!password) newErrors.password = 'Le mot de passe est requis';
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    setIsLoading(true);
+    try {
+      const { user } = await loginUser(email.trim(), password);
+      await saveSession(user);
+      router.replace('/');
+    } catch (error: any) {
+      setErrors({ general: error.message || 'Email ou mot de passe incorrect.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  /**
-   /**
-    * Composant réutilisable pour le champ de texte
-    */
-   type CustomTextInputProps = {
-     label: string;
-     placeholder: string;
-     value: string;
-     onChangeText: (text: string) => void;
-     iconName: keyof typeof Feather.glyphMap;
-     isPassword?: boolean;
-     isVisible?: boolean;
-     toggleVisibility?: () => void;
-     error?: string;
-     keyboardType?: string;
-   };
-   const CustomTextInput: React.FC<CustomTextInputProps> = ({
-     label,
-     placeholder,
-     value,
-     onChangeText,
-     iconName,
-     isPassword = false,
-     isVisible = false,
-     toggleVisibility,
-     error,
-     keyboardType,
-   }) => (
-     <View style={styles.formGroup}>
-       <Text style={styles.label}>{label}</Text>
-       <View style={[styles.inputContainer, error && styles.inputError]}>
-         <Feather name={iconName} size={20} color={error ? "#FF3B30" : "#666"} style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          placeholder={placeholder}
-          placeholderTextColor="#666"
-          value={value}
-          onChangeText={onChangeText}
-          secureTextEntry={isPassword && !isVisible}
-          keyboardAppearance="dark"
-          keyboardType={keyboardType as any}
-        />
-        {isPassword && (
-          <TouchableOpacity onPress={toggleVisibility} style={styles.visibilityToggle}>
-            <Feather name={isVisible ? "eye" : "eye-off"} size={20} color="#666" />
-          </TouchableOpacity>
-        )}
-      </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
-    </View>
-  );
+  const handleBack = () => {
+    router.back();
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Flèche de retour */}
       <TouchableOpacity onPress={handleBack} style={styles.backButton}>
         <Ionicons name="arrow-back" size={24} color="#FFF" />
       </TouchableOpacity>
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        
-        {/* Titre */}
+
         <Text style={styles.mainTitle}>
-          Create Your Account <Text style={{fontSize: 24}}>✨</Text>
+          {isSignInMode ? 'Sign In' : 'Create Your Account'}
         </Text>
 
-        {/* 1. Full Name */}
-        <CustomTextInput
-          label="Full Name"
-          placeholder="Enter your full name"
-          value={fullName}
-          onChangeText={setFullName}
-          iconName="user"
-          error={errors.fullName}
-        />
+        {/* Full Name — register only */}
+        {!isSignInMode && (
+          <CustomTextInput
+            label="Full Name"
+            placeholder="Enter your full name"
+            value={fullName}
+            onChangeText={setFullName}
+            iconName="user"
+            error={errors.fullName}
+          />
+        )}
 
-        {/* 2. Email */}
         <CustomTextInput
           label="Email"
           placeholder="example@email.com"
@@ -204,10 +199,9 @@ const LoginScreen = () => {
           keyboardType="email-address"
         />
 
-        {/* 3. Password */}
         <CustomTextInput
           label="Password"
-          placeholder="e.g. Simpa@2025"
+          placeholder="Your password"
           value={password}
           onChangeText={setPassword}
           iconName="lock"
@@ -216,85 +210,81 @@ const LoginScreen = () => {
           toggleVisibility={() => setIsPasswordVisible(!isPasswordVisible)}
           error={errors.password}
         />
-        
-        {/* Indicateur de force du mot de passe (simplifié) */}
-        <View style={styles.passwordStrengthBarContainer}>
-          <Text style={styles.passwordStrengthText}>
-            Password strength: {passwordStrength}
-          </Text>
-          {passwordStrength !== 'Weak' && <Ionicons name="checkmark-circle" size={16} color="#4CD964" style={{marginLeft: 5}} />}
-          <View style={[styles.strengthBarBackground, { marginLeft: 10 }]}>
-            <View style={[styles.strengthBar, styles[`strengthBar_${passwordStrength}`]]} />
-          </View>
-        </View>
 
-
-        {/* 4. Confirm Password */}
-        <CustomTextInput
-          label="Confirm Password"
-          placeholder="e.g. Simpa@2025"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          iconName="lock"
-          isPassword
-          isVisible={isConfirmPasswordVisible}
-          toggleVisibility={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
-          error={errors.confirmPassword}
-        />
-        
-        {/* Checkbox Terms & Conditions */}
-        <TouchableOpacity style={styles.checkboxContainer} onPress={() => setAgreedToTerms(!agreedToTerms)}>
-            <View style={[styles.checkbox, agreedToTerms && styles.checkboxActive, errors.terms && styles.checkboxError]}>
-                {agreedToTerms && <Ionicons name="checkmark" size={18} color="#000" />}
+        {/* Password strength + confirm — register only */}
+        {!isSignInMode && (
+          <>
+            <View style={styles.passwordStrengthBarContainer}>
+              <Text style={styles.passwordStrengthText}>
+                Password strength: {passwordStrength}
+              </Text>
+              {passwordStrength !== 'Weak' && <Ionicons name="checkmark-circle" size={16} color="#4CD964" style={{marginLeft: 5}} />}
+              <View style={[styles.strengthBarBackground, { marginLeft: 10 }]}>
+                <View style={[styles.strengthBar, styles[`strengthBar_${passwordStrength}`]]} />
+              </View>
             </View>
-            <Text style={styles.checkboxLabel}>
+
+            <CustomTextInput
+              label="Confirm Password"
+              placeholder="Repeat your password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              iconName="lock"
+              isPassword
+              isVisible={isConfirmPasswordVisible}
+              toggleVisibility={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
+              error={errors.confirmPassword}
+            />
+
+            <TouchableOpacity style={styles.checkboxContainer} onPress={() => setAgreedToTerms(!agreedToTerms)}>
+              <View style={[styles.checkbox, agreedToTerms && styles.checkboxActive, errors.terms && styles.checkboxError]}>
+                {agreedToTerms && <Ionicons name="checkmark" size={18} color="#000" />}
+              </View>
+              <Text style={styles.checkboxLabel}>
                 I agree to the <Text style={styles.linkText}>[Terms & Conditions]</Text> & <Text style={styles.linkText}>[Privacy Policy]</Text>.
-            </Text>
-        </TouchableOpacity>
-        {errors.terms && <Text style={styles.errorText}>{errors.terms}</Text>}
-        
-        {/* Message d'erreur général */}
+              </Text>
+            </TouchableOpacity>
+            {errors.terms && <Text style={styles.errorText}>{errors.terms}</Text>}
+          </>
+        )}
+
         {errors.general && (
           <View style={styles.generalErrorContainer}>
             <Text style={styles.generalErrorText}>{errors.general}</Text>
           </View>
         )}
 
-        {/* Bouton Principal */}
         <TouchableOpacity
-          style={[styles.button, (!agreedToTerms || isLoading) && styles.buttonDisabled]}
-          onPress={handleCreateAccount}
-          disabled={!agreedToTerms || isLoading}
+          style={[styles.button, isLoading && styles.buttonDisabled]}
+          onPress={isSignInMode ? handleLogin : handleCreateAccount}
+          disabled={isLoading}
         >
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.buttonText}>Création du compte...</Text>
-            </View>
-          ) : (
-            <Text style={styles.buttonText}>Create Account</Text>
-          )}
+          <Text style={styles.buttonText}>
+            {isLoading
+              ? isSignInMode ? 'Connexion...' : 'Création du compte...'
+              : isSignInMode ? 'Sign In' : 'Create Account'}
+          </Text>
         </TouchableOpacity>
 
-        {/* Séparateur */}
         <View style={styles.separatorContainer}>
           <View style={styles.separatorLine} />
           <Text style={styles.separatorText}>or continue with</Text>
           <View style={styles.separatorLine} />
         </View>
-        
-        {/* Connexion Sociales */}
+
         <View style={styles.socialButtonsContainer}>
           <SocialButton iconName="logo-google" provider="google" />
           <SocialButton iconName="logo-facebook" provider="facebook" />
           <SocialButton iconName="logo-apple" provider="apple" />
         </View>
 
-        {/* Lien Connexion */}
         <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>Already Have An Account?</Text>
-            <TouchableOpacity onPress={handleSignIn}>
-                <Text style={styles.signInLink}>Sign In</Text>
-            </TouchableOpacity>
+          <Text style={styles.footerText}>
+            {isSignInMode ? "Don't have an account?" : 'Already Have An Account?'}
+          </Text>
+          <TouchableOpacity onPress={() => { setErrors({}); setIsSignInMode(!isSignInMode); }}>
+            <Text style={styles.signInLink}>{isSignInMode ? 'Register' : 'Sign In'}</Text>
+          </TouchableOpacity>
         </View>
 
       </ScrollView>
@@ -311,15 +301,11 @@ type SocialButtonProps = {
   provider: string;
 };
 
-const SocialButton: React.FC<SocialButtonProps> = ({ iconName, provider }) => {
-  const iconColor = '#FFF'; // Couleur par défaut pour les icônes sur fond noir
-
-  return (
-    <TouchableOpacity style={styles.socialButton}>
-      <Ionicons name={iconName as any} size={30} color={iconColor} />
-    </TouchableOpacity>
-  );
-};
+const SocialButton: React.FC<SocialButtonProps> = ({ iconName }) => (
+  <TouchableOpacity style={styles.socialButton}>
+    <Ionicons name={iconName as any} size={28} color="#FFF" />
+  </TouchableOpacity>
+);
 
 // --- Styles ---
 const styles = StyleSheet.create({
@@ -507,17 +493,12 @@ const styles = StyleSheet.create({
   // CONNEXION SOCIALE
   socialButtonsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 40,
+    justifyContent: 'center',
+    gap: 32,
+    marginBottom: 32,
   },
   socialButton: {
-    width: 140, // Calcule la largeur pour 3 boutons avec espacement
-    height: 60,
-    backgroundColor: '#1E1E1E',
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 8,
   },
 
   // PIED DE PAGE

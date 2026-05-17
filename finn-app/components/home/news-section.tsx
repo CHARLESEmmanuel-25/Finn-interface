@@ -11,16 +11,17 @@ export const NewsSection = () => {
         <NewsListItem
           title="Tesla annonce une nouvelle usine en Europe"
           source="Tesla"
+          time="2h"
         />
-
         <NewsListItem
           title="Inflation en baisse aux États-Unis"
           source="Bloomberg"
+          time="4h"
         />
-
         <NewsListItem
           title="Apple lance de nouveaux produits"
           source="AAPL"
+          time="6h"
         />
       </View>
     </View>
@@ -39,7 +40,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   list: {
-    gap: 12,
+    gap: 8,
   },
-  
 });

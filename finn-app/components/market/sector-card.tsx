@@ -1,16 +1,22 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { getSectorEntry } from "@/constants/sectorIcons";
 
 interface SectorCardProps {
   name: string;
-  icon: string;
+  icon?: string;
 }
 
-export const SectorCard: React.FC<SectorCardProps> = ({ name, icon }) => {
+export const SectorCard: React.FC<SectorCardProps> = ({ name }) => {
+  const entry = getSectorEntry(name);
+
   return (
     <View style={styles.card}>
-      <Text style={styles.icon}>{icon}</Text>
-      <Text style={styles.name}>{name}</Text>
+      <View style={[styles.iconBox, { backgroundColor: entry.bg }]}>
+        <MaterialCommunityIcons name={entry.icon} size={22} color={entry.color} />
+      </View>
+      <Text style={styles.name} numberOfLines={1}>{name}</Text>
     </View>
   );
 };
@@ -18,19 +24,24 @@ export const SectorCard: React.FC<SectorCardProps> = ({ name, icon }) => {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: "row",
     alignItems: "center",
-    marginRight: 16,
-    minWidth: 80,
+    marginRight: 12,
+    minWidth: 150,
+    height: 58,
   },
-  icon: {
-    fontSize: 24,
-    marginBottom: 8,
+  iconBox: {
+    borderRadius: 10,
+    padding: 7,
+    marginRight: 10,
   },
   name: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: "600",
     color: "#FFF",
-    textAlign: "center",
+    flexShrink: 1,
   },
 });

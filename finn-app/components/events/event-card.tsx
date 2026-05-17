@@ -13,10 +13,12 @@ export const EventCard: React.FC<EventCardProps> = ({ title, date, symbol }) => 
   return (
     <View style={[glass.card, styles.card]}>
       <View style={styles.header}>
-        <Ionicons name="calendar-clear-outline" size={16} color="#8B5CF6" />
+        <View style={styles.iconBox}>
+          <Ionicons name="calendar-clear-outline" size={14} color="#8B5CF6" />
+        </View>
         {symbol && <Text style={styles.symbol}>{symbol}</Text>}
       </View>
-      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.title} numberOfLines={2}>{title}</Text>
       <Text style={styles.date}>{date}</Text>
     </View>
   );
@@ -31,16 +33,23 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 10,
+  },
+  iconBox: {
+    backgroundColor: "rgba(139, 92, 246, 0.2)",
+    borderRadius: 8,
+    padding: 6,
+    justifyContent: "center",
+    alignItems: "center",
   },
   symbol: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#8B5CF6",
+    color: TEXT_PRIMARY,
   },
   title: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "700",
     color: TEXT_PRIMARY,
     marginBottom: 4,

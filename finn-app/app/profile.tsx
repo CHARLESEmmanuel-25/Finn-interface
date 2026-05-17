@@ -13,9 +13,11 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { fetchUser, User } from '@/services/api';
 
 export default function ProfileScreen() {
   const [userData, setUserData] = useState<any>(null);
+  const [apiUser, setApiUser] = useState<User | null>(null);
 
   useEffect(() => {
     loadUserData();
@@ -23,14 +25,19 @@ export default function ProfileScreen() {
 
   const loadUserData = async () => {
     try {
-      const userInfo = await AsyncStorage.getItem('userData');
-      if (userInfo) {
-        setUserData(JSON.parse(userInfo));
+      const [userInfo, userId] = await AsyncStorage.multiGet(['userData', 'userId']);
+      if (userInfo[1]) setUserData(JSON.parse(userInfo[1]));
+      if (userId[1]) {
+        fetchUser(userId[1]).then(setApiUser).catch(() => {});
       }
     } catch (error) {
       console.error('Erreur lors du chargement des données utilisateur:', error);
     }
   };
+
+  const displayName = apiUser
+    ? `${apiUser.firstName} ${apiUser.lastName}`.trim()
+    : userData?.fullName ?? '';
 
   const handleLogout = () => {
     Alert.alert(
@@ -88,8 +95,8 @@ export default function ProfileScreen() {
             source={{ uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face' }}
             style={styles.profileImage}
           />
-          <Text style={styles.profileName}>{userData.fullName}</Text>
-          <Text style={styles.profileType}>Individual Investor</Text>
+          <Text style={styles.profileName}>{displayName}</Text>
+          <Text style={styles.profileType}>{apiUser?.email ?? userData?.email ?? 'Individual Investor'}</Text>
         </View>
 
         {/* Tracked Stocks */}

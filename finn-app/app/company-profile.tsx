@@ -9,21 +9,64 @@ import {
   Dimensions,
   Alert,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LineChart } from "react-native-chart-kit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { LogoImage } from "../components/LogoImage";
+import { fetchStockHistory, OhlcvPoint } from "@/services/api";
 
 const { width } = Dimensions.get("window");
 
+const PERIODS = ["1D", "1W", "1M", "3M", "6M", "1Y"] as const;
+type Period = (typeof PERIODS)[number];
+
+const PERIOD_API_MAP: Record<Period, "1m" | "3m" | "6m" | "1y" | null> = {
+  "1D": null,
+  "1W": null,
+  "1M": "1m",
+  "3M": "3m",
+  "6M": "6m",
+  "1Y": "1y",
+};
+
+function samplePoints<T>(arr: T[], maxPoints: number): T[] {
+  if (arr.length <= maxPoints) return arr;
+  const step = Math.ceil(arr.length / maxPoints);
+  return arr.filter((_, i) => i % step === 0);
+}
+
+// Génère une courbe déterministe (basée sur le symbole) quand l'historique est absent
+function generateSyntheticData(
+  currentPrice: number,
+  changePct: number,
+  symbol: string,
+  n = 24,
+) {
+  const openPrice = currentPrice / (1 + changePct / 100);
+  const diff = currentPrice - openPrice;
+  const seed = symbol.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return Array.from({ length: n }, (_, i) => {
+    const t = i / (n - 1);
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const osc =
+      Math.sin(t * Math.PI * (3 + (seed % 4)) + seed * 0.1) *
+      Math.abs(diff) *
+      0.25;
+    return Math.max(openPrice * 0.99, openPrice + diff * eased + osc);
+  });
+}
+
 export default function CompanyProfile() {
   const params = useLocalSearchParams();
-  const [selectedPeriod, setSelectedPeriod] = useState("Last Week");
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>("1D");
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isInPortfolio, setIsInPortfolio] = useState(false);
+  const [history, setHistory] = useState<OhlcvPoint[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
 
   // Récupérer les données passées en paramètres
   const companyData = {
@@ -44,25 +87,37 @@ export default function CompanyProfile() {
     currency: (params.currency as string) || "USD",
   };
 
-  // Vérifier si l'entreprise est déjà dans le portfolio
   useEffect(() => {
+    const checkPortfolioStatus = async () => {
+      try {
+        const portfolioData = await AsyncStorage.getItem("portfolio");
+        if (portfolioData) {
+          const portfolio = JSON.parse(portfolioData);
+          const exists = portfolio.some(
+            (item: any) => item.symbol === companyData.symbol,
+          );
+          setIsInPortfolio(exists);
+        }
+      } catch (error) {
+        console.error("Erreur lors de la vérification du portfolio:", error);
+      }
+    };
+
     checkPortfolioStatus();
   }, [companyData.symbol]);
 
-  const checkPortfolioStatus = async () => {
-    try {
-      const portfolioData = await AsyncStorage.getItem("portfolio");
-      if (portfolioData) {
-        const portfolio = JSON.parse(portfolioData);
-        const exists = portfolio.some(
-          (item: any) => item.symbol === companyData.symbol
-        );
-        setIsInPortfolio(exists);
-      }
-    } catch (error) {
-      console.error("Erreur lors de la vérification du portfolio:", error);
+  useEffect(() => {
+    const apiPeriod = PERIOD_API_MAP[selectedPeriod];
+    if (!apiPeriod) {
+      setHistory([]);
+      return;
     }
-  };
+    setHistoryLoading(true);
+    fetchStockHistory(companyData.symbol, apiPeriod)
+      .then(setHistory)
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, [companyData.symbol, selectedPeriod]);
 
   const handleTogglePortfolio = async () => {
     try {
@@ -72,7 +127,7 @@ export default function CompanyProfile() {
       if (isInPortfolio) {
         // Retirer du portfolio
         portfolio = portfolio.filter(
-          (item: any) => item.symbol !== companyData.symbol
+          (item: any) => item.symbol !== companyData.symbol,
         );
         setIsInPortfolio(false);
         Alert.alert("Succès", `${companyData.symbol} retiré du portfolio`);
@@ -107,23 +162,20 @@ export default function CompanyProfile() {
     }
   };
 
-  // Données pour le graphique
-  const chartData = {
-    labels: [
-      "Jul 12",
-      "Jul 13",
-      "Jul 14",
-      "Jul 15",
-      "Jul 16",
-      "Jul 17",
-      "Jul 18",
-    ],
-    datasets: [
-      {
-        data: [50, 200, 150, 350, 600, 400, 550],
-      },
-    ],
-  };
+  const sampled = samplePoints(history, 8);
+  const chartData =
+    sampled.length > 1
+      ? {
+          labels: sampled.map((p) => {
+            const d = new Date(p.date);
+            return `${d.getMonth() + 1}/${d.getDate()}`;
+          }),
+          datasets: [{ data: sampled.map((p) => p.close) }],
+        }
+      : {
+          labels: ["—"],
+          datasets: [{ data: [0] }],
+        };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -138,11 +190,13 @@ export default function CompanyProfile() {
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Company Profile</Text>
-        <View style={{
-          display: "flex",
-          flexDirection:"row",
-          gap: 4
-        }}>
+        <View
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            gap: 4,
+          }}
+        >
           <TouchableOpacity
             style={styles.bookmarkButton}
             onPress={() => setIsBookmarked(!isBookmarked)}
@@ -173,12 +227,15 @@ export default function CompanyProfile() {
         {/* Company Info */}
         <View style={styles.companyHeader}>
           <View style={styles.logoContainer}>
-            <LogoImage
-              logo={companyData.logo}
-              symbol={companyData.symbol}
-              name={companyData.name}
-              size={60}
-            />
+            {companyData.logo ? (
+              <Image
+                source={{ uri: companyData.logo }}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <Text style={styles.logoText}>{companyData.symbol}</Text>
+            )}
           </View>
           <View style={styles.companyInfo}>
             <Text style={styles.companyName}>
@@ -217,70 +274,204 @@ export default function CompanyProfile() {
 
         {/* About Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About:</Text>
-          <Text style={styles.aboutText}>
-            {companyData.about}{" "}
-            <Text style={styles.readMore}>Read More...</Text>
+          <Text
+            style={styles.aboutText}
+            numberOfLines={descExpanded ? undefined : 2}
+          >
+            {companyData.about}
           </Text>
-
-          {/* Location & Website */}
+          {companyData.about.length > 80 && (
+            <TouchableOpacity onPress={() => setDescExpanded((e) => !e)}>
+              <Text style={styles.readMore}>
+                {descExpanded ? "Réduire" : "Lire la suite"}
+              </Text>
+            </TouchableOpacity>
+          )}
           <View style={styles.infoRow}>
             <View style={styles.infoItem}>
-              <Ionicons name="location-outline" size={18} color="#A9A9A9" />
-              <Text style={styles.infoText}>{companyData.location}</Text>
+              <Ionicons name="location-outline" size={16} color="#A9A9A9" />
+              <Text style={styles.infoText} numberOfLines={1}>
+                {companyData.location}
+              </Text>
             </View>
             <View style={styles.infoItem}>
-              <Ionicons name="globe-outline" size={18} color="#A9A9A9" />
-              <Text style={styles.infoText}>{companyData.website}</Text>
+              <Ionicons name="globe-outline" size={16} color="#A9A9A9" />
+              <Text style={styles.infoText} numberOfLines={1}>
+                {companyData.website}
+              </Text>
             </View>
           </View>
         </View>
 
         {/* Stock Graph */}
-        <View style={styles.section}>
-          <View style={styles.graphHeader}>
-            <Text style={styles.sectionTitle}>Stock Graph</Text>
-            <View style={styles.periodSelector}>
-              <Text style={styles.periodText}>{selectedPeriod}</Text>
-              <Ionicons name="chevron-down" size={16} color="#8B5CF6" />
-            </View>
-          </View>
+        {(() => {
+          const isPos = parseFloat(companyData.change) >= 0;
+          const chartColor = isPos ? "#22C55E" : "#EF4444";
+          const openPrice = history.length > 0 ? history[0].open : null;
+          const highPrice =
+            history.length > 0 ? Math.max(...history.map((p) => p.high)) : null;
+          const lowPrice =
+            history.length > 0 ? Math.min(...history.map((p) => p.low)) : null;
+          const fmt = (v: number | null) => (v != null ? v.toFixed(2) : "—");
+          const curr = companyData.currency === "EUR" ? "€" : "$";
 
-          <View style={styles.chartContainer}>
-            <LineChart
-              data={chartData}
-              width={width - 60}
-              height={220}
-              chartConfig={{
-                backgroundColor: "#1A1A1A",
-                backgroundGradientFrom: "#1A1A1A",
-                backgroundGradientTo: "#1A1A1A",
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(169, 169, 169, ${opacity})`,
-                style: {
-                  borderRadius: 16,
-                },
-                propsForDots: {
-                  r: "6",
-                  strokeWidth: "2",
-                  stroke: "#8B5CF6",
-                  fill: "#8B5CF6",
-                },
-                propsForBackgroundLines: {
-                  strokeDasharray: "5,5",
-                  stroke: "#333",
-                },
-              }}
-              bezier
-              style={styles.chart}
-              withInnerLines={true}
-              withOuterLines={true}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-            />
-          </View>
-        </View>
+          return (
+            <View style={styles.chartSection}>
+              {/* Period selector — full width, no title */}
+              <View style={styles.periodButtons}>
+                {PERIODS.map((p) => (
+                  <TouchableOpacity
+                    key={p}
+                    style={[
+                      styles.periodBtn,
+                      selectedPeriod === p && styles.periodBtnActive,
+                    ]}
+                    onPress={() => setSelectedPeriod(p)}
+                  >
+                    <Text
+                      style={[
+                        styles.periodBtnText,
+                        selectedPeriod === p && { color: chartColor },
+                      ]}
+                    >
+                      {p}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {(() => {
+                const currentPrice = parseFloat(companyData.price);
+                const changePct = parseFloat(companyData.change);
+                const hasReal = history.length > 1;
+                const synth =
+                  !hasReal && currentPrice > 0
+                    ? generateSyntheticData(
+                        currentPrice,
+                        changePct,
+                        companyData.symbol,
+                      )
+                    : null;
+
+                const displayData = hasReal
+                  ? chartData
+                  : synth
+                    ? {
+                        labels: Array.from({ length: synth.length }, () => ""),
+                        datasets: [{ data: synth }],
+                      }
+                    : null;
+
+                return (
+                  <View style={styles.chartContainer}>
+                    {historyLoading ? (
+                      <ActivityIndicator
+                        color={chartColor}
+                        style={{ height: 200 }}
+                      />
+                    ) : displayData ? (
+                      <>
+                        <LineChart
+                          data={displayData}
+                          width={width - 40}
+                          height={200}
+                          withShadow
+                          chartConfig={{
+                            backgroundColor: "transparent",
+                            backgroundGradientFrom: "#0A0A0F",
+                            backgroundGradientTo: "#0A0A0F",
+                            decimalPlaces: 2,
+                            color: () => chartColor,
+                            labelColor: () => "rgba(255,255,255,0.3)",
+                            fillShadowGradient: chartColor,
+                            fillShadowGradientOpacity: 0.35,
+                            fillShadowGradientTo: chartColor,
+                            fillShadowGradientToOpacity: 0,
+                            propsForDots: { r: "0" },
+                            propsForBackgroundLines: {
+                              strokeDasharray: "4,6",
+                              stroke: "rgba(255,255,255,0.07)",
+                              strokeWidth: 1,
+                            },
+                          }}
+                          bezier
+                          // style={[
+                          //   styles.chart,
+                          //   {
+                          //     paddingTop: 8,
+                          //     // paddingRight = inset gauche du tracé (défaut lib : 64)
+                          //     paddingRight: hasReal ? 44 : 0,
+                          //   },
+                          // ]}
+                          style={{
+                            padding: 0,
+                            // paddingRight: hasReal ? 44 : 0,
+                          }}
+                          withInnerLines
+                          withOuterLines={false}
+                          withVerticalLines={false}
+                          withHorizontalLines
+                          withVerticalLabels={false}
+                          withHorizontalLabels={hasReal}
+                        />
+                        {!hasReal && (
+                          <Text style={styles.syntheticNote}>
+                            Aperçu basé sur la variation du jour
+                          </Text>
+                        )}
+                      </>
+                    ) : (
+                      <View style={styles.chartCurrentPrice}>
+                        <Ionicons
+                          name="stats-chart-outline"
+                          size={36}
+                          color="#333"
+                        />
+                        <Text style={styles.chartCurrentSub}>
+                          Données indisponibles
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
+
+              {/* Metrics grid */}
+              <View style={styles.metricsGrid}>
+                <MetricCell
+                  label="Open"
+                  value={
+                    openPrice != null
+                      ? `${curr}${fmt(openPrice)}`
+                      : `${curr}${companyData.price}`
+                  }
+                />
+                <MetricCell
+                  label="High"
+                  value={highPrice != null ? `${curr}${fmt(highPrice)}` : "—"}
+                />
+                <MetricCell
+                  label="Low"
+                  value={lowPrice != null ? `${curr}${fmt(lowPrice)}` : "—"}
+                />
+                <MetricCell
+                  label="P/E"
+                  value={
+                    companyData.peRatio !== "0.0" ? companyData.peRatio : "—"
+                  }
+                />
+                <MetricCell label="Mkt Cap" value={companyData.marketCap} />
+                <MetricCell
+                  label="EPS"
+                  value={companyData.eps !== "$0.00" ? companyData.eps : "—"}
+                />
+                <MetricCell label="Dividend" value={companyData.dividend} />
+                <MetricCell label="Actions" value={companyData.shares} />
+                <MetricCell label="Devise" value={companyData.currency} />
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Key Stats */}
         <View style={styles.section}>
@@ -366,6 +557,14 @@ export default function CompanyProfile() {
   );
 }
 
+// Composant MetricCell (grille sous le graphique)
+const MetricCell = ({ label, value }: { label: string; value: string }) => (
+  <View style={styles.metricCell}>
+    <Text style={styles.metricLabel}>{label}</Text>
+    <Text style={styles.metricValue}>{value}</Text>
+  </View>
+);
+
 // Composant StatCard
 const StatCard = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.statCard}>
@@ -428,20 +627,24 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   logoContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFF",
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "rgba(139, 92, 246, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#8B5CF6",
-    marginRight: 16,
+    marginRight: 12,
+    overflow: "hidden",
   },
-  logo: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  logoImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+  },
+  logoText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#8B5CF6",
   },
   companyInfo: {
     flex: 1,
@@ -489,14 +692,22 @@ const styles = StyleSheet.create({
 
   // About
   aboutText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#A9A9A9",
-    lineHeight: 22,
-    marginBottom: 16,
+    lineHeight: 20,
+    marginBottom: 4,
   },
   readMore: {
     color: "#8B5CF6",
     fontWeight: "600",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  syntheticNote: {
+    fontSize: 10,
+    color: "#444",
+    textAlign: "center",
+    marginTop: 4,
   },
   infoRow: {
     backgroundColor: "#1A1A1A",
@@ -504,6 +715,7 @@ const styles = StyleSheet.create({
     padding: 16,
     flexDirection: "row",
     justifyContent: "space-around",
+    marginTop: 16
   },
   infoItem: {
     flexDirection: "row",
@@ -516,34 +728,92 @@ const styles = StyleSheet.create({
   },
 
   // Graph
-  graphHeader: {
+  chartSection: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  periodButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  periodSelector: {
-    flexDirection: "row",
+  periodBtn: {
+    flex: 1,
     alignItems: "center",
-    backgroundColor: "#1A1A1A",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 8,
-    gap: 4,
   },
-  periodText: {
-    fontSize: 14,
-    color: "#8B5CF6",
-    fontWeight: "600",
+  periodBtnActive: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  periodBtnText: {
+    fontSize: 13,
+    color: "#555",
+    fontWeight: "700",
   },
   chartContainer: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 16,
-    padding: 10,
-    alignItems: "center",
+    overflow: "hidden",
   },
   chart: {
-    borderRadius: 16,
+    borderRadius: 12,
+  },
+  metricsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  metricCell: {
+    width: "33.33%",
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+  },
+  metricLabel: {
+    fontSize: 11,
+    color: "#666",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  metricValue: {
+    fontSize: 13,
+    color: "#FFF",
+    fontWeight: "600",
+  },
+  chartCurrentPrice: {
+    height: 200,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+  },
+  chartCurrentLabel: {
+    fontSize: 11,
+    color: "#555",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  chartCurrentValue: {
+    fontSize: 44,
+    fontWeight: "700",
+  },
+  chartCurrentBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  chartCurrentChange: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  chartCurrentSub: {
+    fontSize: 11,
+    color: "#444",
+    marginTop: 4,
   },
 
   // Key Stats

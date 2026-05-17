@@ -10,26 +10,14 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { fetchSectors, type Sector } from '../services/api';
-
-// Couleurs par défaut pour les secteurs
-const sectorColors: { [key: string]: string } = {
-  'Technology': '#8B5CF6',
-  'Technologies': '#8B5CF6',
-  'Finance': '#4CD964',
-  'Healthcare': '#FF3B30',
-  'Energy': '#FF9500',
-  'Consumer': '#5AC8FA',
-  'Consumer Cyclical': '#5AC8FA',
-  'Utilities': '#FFCC00',
-  'Communication Services': '#45B7D1',
-  'Industrials': '#96CEB4',
-  'Services': '#4ECDC4',
-};
+import { fetchSectors, fetchSectorPerformance, type Sector, type SectorPerformance } from '../services/api';
+import { getSectorEntry } from '../constants/sectorIcons';
 
 export default function MarketSectorsScreen() {
   const [sectors, setSectors] = useState<Sector[]>([]);
+  const [perfMap, setPerfMap] = useState<Record<string, SectorPerformance>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,8 +27,14 @@ export default function MarketSectorsScreen() {
   const loadSectors = async () => {
     try {
       setLoading(true);
-      const sectorsData = await fetchSectors();
+      const [sectorsData, perfData] = await Promise.all([
+        fetchSectors(),
+        fetchSectorPerformance().catch(() => [] as SectorPerformance[]),
+      ]);
       setSectors(sectorsData);
+      const map: Record<string, SectorPerformance> = {};
+      perfData.forEach(p => { map[p.name] = p; });
+      setPerfMap(map);
     } catch (error) {
       console.error('Erreur lors du chargement des secteurs:', error);
     } finally {
@@ -48,9 +42,7 @@ export default function MarketSectorsScreen() {
     }
   };
 
-  // Top secteurs (premiers 6)
   const topSectors = sectors.slice(0, 6);
-  // Tous les secteurs
   const allSectors = sectors;
 
   const handleSectorPress = (sector: any) => {
@@ -88,9 +80,10 @@ export default function MarketSectorsScreen() {
                 <Text style={styles.sectionTitle}>Top Sectors</Text>
                 <View style={styles.sectorsGrid}>
                   {topSectors.map((sector) => (
-                    <SectorCard 
+                    <SectorCard
                       key={sector._id}
                       sector={sector}
+                      perf={perfMap[sector.name]}
                       onPress={() => handleSectorPress(sector)}
                     />
                   ))}
@@ -103,9 +96,10 @@ export default function MarketSectorsScreen() {
               <Text style={styles.sectionTitle}>All Market Sectors</Text>
               <View style={styles.sectorsGrid}>
                 {allSectors.map((sector) => (
-                  <SectorCard 
+                  <SectorCard
                     key={sector._id}
                     sector={sector}
+                    perf={perfMap[sector.name]}
                     onPress={() => handleSectorPress(sector)}
                   />
                 ))}
@@ -121,15 +115,29 @@ export default function MarketSectorsScreen() {
   );
 }
 
-// Composant pour les cartes de secteur
-const SectorCard = ({ sector, onPress }: { sector: Sector; onPress: () => void }) => {
-  const color = sectorColors[sector.name] || '#8B5CF6';
+const SectorCard = ({
+  sector,
+  perf,
+  onPress,
+}: {
+  sector: Sector;
+  perf?: SectorPerformance;
+  onPress: () => void;
+}) => {
+  const entry = getSectorEntry(sector.name);
+  const avgPerf = perf?.avgPerf;
+  const isPos = avgPerf != null && avgPerf >= 0;
   return (
     <TouchableOpacity style={styles.sectorCard} onPress={onPress}>
-      <View style={[styles.sectorIcon, { backgroundColor: color + '20' }]}>
-        <Text style={styles.sectorEmoji}>{sector.logo || '📊'}</Text>
+      <View style={[styles.sectorIcon, { backgroundColor: entry.bg }]}>
+        <MaterialCommunityIcons name={entry.icon} size={26} color={entry.color} />
       </View>
       <Text style={styles.sectorName}>{sector.name}</Text>
+      {avgPerf != null && (
+        <Text style={[styles.sectorPerf, { color: isPos ? '#22C55E' : '#EF4444' }]}>
+          {isPos ? '+' : ''}{avgPerf.toFixed(2)}%
+        </Text>
+      )}
     </TouchableOpacity>
   );
 };
@@ -197,14 +205,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  sectorEmoji: {
-    fontSize: 24,
-  },
   sectorName: {
     color: '#FFF',
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  sectorPerf: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
   },
   bottomSpacer: {
     height: 100,
