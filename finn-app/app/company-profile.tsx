@@ -375,6 +375,7 @@ export default function CompanyProfile() {
                           data={displayData}
                           width={width - 40}
                           height={200}
+                          {...({ paddingRight: 16 } as any)}
                           withShadow
                           chartConfig={{
                             backgroundColor: "transparent",
@@ -395,17 +396,10 @@ export default function CompanyProfile() {
                             },
                           }}
                           bezier
-                          // style={[
-                          //   styles.chart,
-                          //   {
-                          //     paddingTop: 8,
-                          //     // paddingRight = inset gauche du tracé (défaut lib : 64)
-                          //     paddingRight: hasReal ? 44 : 0,
-                          //   },
-                          // ]}
+                        
                           style={{
                             padding: 0,
-                            // paddingRight: hasReal ? 44 : 0,
+                            paddingRight: hasReal ? 44 : 16,
                           }}
                           withInnerLines
                           withOuterLines={false}
