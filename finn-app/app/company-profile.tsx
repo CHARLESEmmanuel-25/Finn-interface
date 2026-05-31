@@ -67,6 +67,70 @@ export default function CompanyProfile() {
   const [history, setHistory] = useState<OhlcvPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
+  const [finTab, setFinTab] = useState<"annual" | "quarterly">("annual");
+  const [finSection, setFinSection] = useState<"resultat" | "bilan" | "ratios">("resultat");
+  const [ratiosExpanded, setRatiosExpanded] = useState(true);
+
+  const quarterlyData = [
+    { period: "Q1 '25", revenus: "125M €", revenusChange: "-13.61", ebitda: "-14.6M €", ebitdaChange: "+46.39", resultatNet: "-18.1M €", resultatNetChange: "+38.64" },
+    { period: "Q2 '25", revenus: "186M €", revenusChange: "-32.00", ebitda: "-13.3M €", ebitdaChange: "-539.52", resultatNet: "-13.3M €", resultatNetChange: "-694.80" },
+    { period: "Q3 '25", revenus: "239M €", revenusChange: "-12.03", ebitda: "5.02M €", ebitdaChange: "-24.68", resultatNet: "3.8M €", resultatNetChange: "-15.20" },
+    { period: "Q4 '25", revenus: "272M €", revenusChange: "+8.50", ebitda: "6.7M €", ebitdaChange: "+12.45", resultatNet: "4.5M €", resultatNetChange: "+10.30" },
+  ];
+  const resultatAnnual = [
+    { label: "Chiffre d'affaires", sub: "Total des ventes", value: "$394.3B", change: "+6.0" },
+    { label: "EBITDA", sub: "Résultat avant charges", value: "$120.5B", change: "+4.2" },
+    { label: "Résultat net", sub: "Bénéfice final", value: "$96.8B", change: "+8.6" },
+  ];
+  const bilanData = {
+    actif: [{ label: "Actifs courants", value: "$150.5B" }, { label: "Actifs non courants", value: "$340.2B" }, { label: "Total Actif", value: "$490.7B", bold: true }],
+    passif: [{ label: "Passifs courants", value: "$120.3B" }, { label: "Passifs non courants", value: "$180.1B" }, { label: "Total Passif", value: "$300.4B", bold: true }],
+    equity: [{ label: "Capitaux propres", value: "$190.3B", bold: true }],
+  };
+  const ratiosGroups = [
+    {
+      category: "VALORISATION",
+      items: [
+        { label: "PER (Price/Earnings)", sub: "Combien paye-t-on pour €1 de bénéfice", value: "28.7", color: "#8B5CF6", bar: 0.58, hint: "Moy. secteur : 32" },
+        { label: "P/B (Price/Book)", sub: "Cours vs valeur comptable de l'entreprise", value: "45.2", color: "#F59E0B", bar: 0.88, hint: "Élevé pour le secteur" },
+        { label: "PEG Ratio", sub: "PER rapporté à la croissance des bénéfices", value: "2.3", color: "#F59E0B", bar: 0.38, hint: "Idéal < 1" },
+      ],
+    },
+    {
+      category: "RENTABILITÉ",
+      items: [
+        { label: "Marge Brute", sub: "Part du CA restant après coûts de production", value: "43.5%", color: "#22C55E", bar: 0.75, hint: "Très solide" },
+        { label: "Marge d'Exploitation", sub: "Profit avant impôts et intérêts", value: "28.9%", color: "#22C55E", bar: 0.54, hint: "Moy. secteur : 20%" },
+        { label: "Marge Nette", sub: "Bénéfice final sur chaque euro de vente", value: "24.6%", color: "#22C55E", bar: 0.48, hint: "Moy. secteur : 15%" },
+        { label: "ROE", sub: "Rendement des capitaux propres", value: "50.8%", color: "#22C55E", bar: 0.92, hint: "Exceptionnel" },
+        { label: "ROA", sub: "Rendement des actifs totaux", value: "19.7%", color: "#22C55E", bar: 0.65, hint: "Moy. secteur : 8%" },
+        { label: "ROIC", sub: "Rendement du capital investi", value: "42.5%", color: "#22C55E", bar: 0.82, hint: "Très élevé" },
+      ],
+    },
+    {
+      category: "ENDETTEMENT",
+      items: [
+        { label: "Dette LT / Equity", sub: "Dettes long terme vs fonds propres", value: "1.8", color: "#F59E0B", bar: 0.45, hint: "Idéal < 1" },
+        { label: "Dette / Equity", sub: "Endettement total vs fonds propres", value: "2.1", color: "#F59E0B", bar: 0.55, hint: "Élevé — courant en tech" },
+      ],
+    },
+    {
+      category: "LIQUIDITÉ",
+      items: [
+        { label: "Current Ratio", sub: "Capacité à payer les dettes à court terme", value: "1.5", color: "#22C55E", bar: 0.5, hint: "Idéal > 1" },
+        { label: "Quick Ratio", sub: "Liquidité sans compter les stocks", value: "1.2", color: "#22C55E", bar: 0.4, hint: "Idéal > 1" },
+        { label: "Cash Ratio", sub: "Cash disponible vs dettes court terme", value: "0.85", color: "#F59E0B", bar: 0.3, hint: "Acceptable" },
+      ],
+    },
+    {
+      category: "TECHNIQUE",
+      items: [
+        { label: "RSI", sub: "Force relative du cours (0 = survendu · 100 = suracheté)", value: "65", color: "#22C55E", bar: 0.65, hint: "Zone neutre (30–70)" },
+        { label: "Dividend Growth", sub: "Croissance annuelle du dividende", value: "8.5%", color: "#22C55E", bar: 0.4, hint: "Croissance solide" },
+        { label: "Payout Ratio", sub: "Part des bénéfices reversée en dividendes", value: "15.8%", color: "#22C55E", bar: 0.25, hint: "Sain — beaucoup réinvesti" },
+      ],
+    },
+  ];
 
   // Récupérer les données passées en paramètres
   const companyData = {
@@ -77,6 +141,8 @@ export default function CompanyProfile() {
     logo: (params.logo as string) || "",
     location: (params.location as string) || "Cupertino, CA, USA",
     website: (params.website as string) || "www.apple.com",
+    sector: (params.sector as string) || "",
+    industry: (params.industry as string) || "",
     about: (params.about as string) || "No description available.",
     marketCap: (params.marketCap as string) || "$0.0T",
     shares: (params.shares as string) || "0.0B",
@@ -287,19 +353,31 @@ export default function CompanyProfile() {
               </Text>
             </TouchableOpacity>
           )}
-          <View style={styles.infoRow}>
-            <View style={styles.infoItem}>
-              <Ionicons name="location-outline" size={16} color="#A9A9A9" />
-              <Text style={styles.infoText} numberOfLines={1}>
-                {companyData.location}
-              </Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="globe-outline" size={16} color="#A9A9A9" />
-              <Text style={styles.infoText} numberOfLines={1}>
-                {companyData.website}
-              </Text>
-            </View>
+          <View style={styles.badgeRow}>
+            {companyData.location ? (
+              <View style={styles.badge}>
+                <Ionicons name="location-outline" size={13} color="#8B5CF6" />
+                <Text style={styles.badgeText} numberOfLines={1}>{companyData.location}</Text>
+              </View>
+            ) : null}
+            {companyData.sector ? (
+              <View style={styles.badge}>
+                <Ionicons name="layers-outline" size={13} color="#8B5CF6" />
+                <Text style={styles.badgeText} numberOfLines={1}>{companyData.sector}</Text>
+              </View>
+            ) : null}
+            {companyData.industry ? (
+              <View style={styles.badge}>
+                <Ionicons name="business-outline" size={13} color="#8B5CF6" />
+                <Text style={styles.badgeText} numberOfLines={1}>{companyData.industry}</Text>
+              </View>
+            ) : null}
+            {companyData.website ? (
+              <View style={styles.badge}>
+                <Ionicons name="globe-outline" size={13} color="#8B5CF6" />
+                <Text style={styles.badgeText} numberOfLines={1}>{companyData.website}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -467,36 +545,154 @@ export default function CompanyProfile() {
           );
         })()}
 
-        {/* Key Stats */}
+        {/* Données Financières */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Key Stats</Text>
+            <Text style={styles.sectionTitle}>Données Financières</Text>
             <TouchableOpacity
               onPress={() =>
                 router.push({
                   pathname: "/financial-data",
-                  params: {
-                    symbol: companyData.symbol,
-                    name: companyData.name,
-                  },
+                  params: { symbol: companyData.symbol, name: companyData.name },
                 } as any)
               }
             >
-              <Text style={styles.viewAll}>View all</Text>
+              <Text style={styles.viewAll}>voir tout</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.statsContainer}>
-            <View style={styles.statsRow}>
-              <StatCard label="Market Cap" value={companyData.marketCap} />
-              <StatCard label="Shares Stats" value={companyData.shares} />
-              <StatCard label="Annual Revenue" value={companyData.revenue} />
-            </View>
-            <View style={styles.statsRow}>
-              <StatCard label="EPS (TTM)" value={companyData.eps} />
-              <StatCard label="P/E Ratio" value={companyData.peRatio} />
-              <StatCard label="Dividend Yield" value={companyData.dividend} />
-            </View>
+
+          {/* Period tabs */}
+          <View style={styles.finPeriodTabs}>
+            {(["annual", "quarterly"] as const).map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.finPeriodTab, finTab === t && styles.finPeriodTabActive]}
+                onPress={() => setFinTab(t)}
+              >
+                <Text style={[styles.finPeriodTabText, finTab === t && styles.finPeriodTabTextActive]}>
+                  {t === "annual" ? "Annuel" : "Trimestriel"}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
+
+          {/* Section tabs */}
+          <View style={styles.finSectionTabs}>
+            {(["resultat", "bilan", "ratios"] as const).map((s) => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.finSectionTab, finSection === s && styles.finSectionTabActive]}
+                onPress={() => setFinSection(s)}
+              >
+                <Text style={[styles.finSectionTabText, finSection === s && styles.finSectionTabTextActive]}>
+                  {s === "resultat" ? "Résultat" : s === "bilan" ? "Bilan" : "Ratios"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Résultat */}
+          {finSection === "resultat" && (
+            <View style={styles.finCard}>
+              {finTab === "annual" ? (
+                <>
+                  <View style={styles.finCardHeader}>
+                    <Text style={styles.finCardTitle}>FY 2024</Text>
+                    <Text style={styles.finCardSubtitle}>Janv. 2024</Text>
+                  </View>
+                  {resultatAnnual.map((item, i) => (
+                    <View key={i} style={[styles.finRow, i < resultatAnnual.length - 1 && styles.finRowBorder]}>
+                      <View>
+                        <Text style={styles.finRowLabel}>{item.label}</Text>
+                        <Text style={styles.finRowSub}>{item.sub}</Text>
+                      </View>
+                      <View style={styles.finRowRight}>
+                        <Text style={styles.finRowValue}>{item.value}</Text>
+                        <View style={[styles.finChangeBadge, parseFloat(item.change) >= 0 ? styles.finChangeBadgePos : styles.finChangeBadgeNeg]}>
+                          <Ionicons name={parseFloat(item.change) >= 0 ? "arrow-up" : "arrow-down"} size={10} color={parseFloat(item.change) >= 0 ? "#22C55E" : "#EF4444"} />
+                          <Text style={[styles.finChangeText, parseFloat(item.change) >= 0 ? styles.finChangePos : styles.finChangeNeg]}>
+                            {Math.abs(parseFloat(item.change))}%
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              ) : (
+                quarterlyData.map((q, i) => (
+                  <View key={i} style={[styles.finRow, i < quarterlyData.length - 1 && styles.finRowBorder]}>
+                    <Text style={styles.finRowLabel}>{q.period}</Text>
+                    <View style={styles.finRowRight}>
+                      <Text style={styles.finRowValue}>{q.revenus}</Text>
+                      <View style={[styles.finChangeBadge, parseFloat(q.revenusChange) >= 0 ? styles.finChangeBadgePos : styles.finChangeBadgeNeg]}>
+                        <Ionicons name={parseFloat(q.revenusChange) >= 0 ? "arrow-up" : "arrow-down"} size={10} color={parseFloat(q.revenusChange) >= 0 ? "#22C55E" : "#EF4444"} />
+                        <Text style={[styles.finChangeText, parseFloat(q.revenusChange) >= 0 ? styles.finChangePos : styles.finChangeNeg]}>
+                          {Math.abs(parseFloat(q.revenusChange))}%
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+
+          {/* Bilan */}
+          {finSection === "bilan" && (
+            <View style={styles.finCard}>
+              {[{ title: "Actif", rows: bilanData.actif }, { title: "Passif", rows: bilanData.passif }, { title: "Equity", rows: bilanData.equity }].map((group) => (
+                <View key={group.title} style={styles.bilanGroup}>
+                  <Text style={styles.bilanGroupTitle}>{group.title}</Text>
+                  {group.rows.map((item, i) => (
+                    <View key={i} style={[styles.finRow, i < group.rows.length - 1 && styles.finRowBorder]}>
+                      <Text style={[styles.finRowLabel, (item as any).bold && styles.finRowLabelBold]}>{item.label}</Text>
+                      <Text style={[styles.finRowValue, (item as any).bold && styles.finRowValueBold]}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Ratios */}
+          {finSection === "ratios" && (
+            <View>
+              {/* Section header with collapse toggle */}
+              <View style={styles.ratiosHeader}>
+                <Text style={styles.ratiosHeaderTitle}>Ratios financiers</Text>
+                <TouchableOpacity style={styles.ratiosToggle} onPress={() => setRatiosExpanded((v) => !v)}>
+                  <Text style={styles.ratiosToggleText}>{ratiosExpanded ? "Réduire" : "Afficher"}</Text>
+                  <Ionicons name={ratiosExpanded ? "chevron-up" : "chevron-down"} size={13} color="#8B5CF6" />
+                </TouchableOpacity>
+              </View>
+
+              {ratiosExpanded && ratiosGroups.map((group) => (
+                <View key={group.category}>
+                  <Text style={styles.ratioCategoryLabel}>{group.category}</Text>
+                  <View style={styles.finCard}>
+                    {group.items.map((ratio, i) => (
+                      <View key={i} style={[styles.ratioItem, i < group.items.length - 1 && styles.finRowBorder]}>
+                        {/* Top line: name + value */}
+                        <View style={styles.ratioTopRow}>
+                          <Text style={styles.ratioItemLabel}>{ratio.label}</Text>
+                          <Text style={[styles.ratioItemValue, { color: ratio.color }]}>{ratio.value}</Text>
+                        </View>
+                        {/* Description */}
+                        <Text style={styles.ratioItemSub}>{ratio.sub}</Text>
+                        {/* Bar + hint */}
+                        <View style={styles.ratioBarRow}>
+                          <View style={styles.ratioBarTrack}>
+                            <View style={[styles.ratioBarFill, { width: `${Math.round(ratio.bar * 100)}%` as any, backgroundColor: ratio.color }]} />
+                          </View>
+                          <Text style={styles.ratioHint}>{ratio.hint}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Recent & Upcoming Events */}
@@ -556,14 +752,6 @@ const MetricCell = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.metricCell}>
     <Text style={styles.metricLabel}>{label}</Text>
     <Text style={styles.metricValue}>{value}</Text>
-  </View>
-);
-
-// Composant StatCard
-const StatCard = ({ label, value }: { label: string; value: string }) => (
-  <View style={styles.statCard}>
-    <Text style={styles.statLabel}>{label}</Text>
-    <Text style={styles.statValue}>{value}</Text>
   </View>
 );
 
@@ -703,22 +891,27 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 4,
   },
-  infoRow: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
+  badgeRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 16
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 14,
   },
-  infoItem: {
+  badge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 5,
+    backgroundColor: "rgba(139,92,246,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(139,92,246,0.25)",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  infoText: {
-    fontSize: 13,
-    color: "#A9A9A9",
+  badgeText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "500",
   },
 
   // Graph
@@ -810,31 +1003,234 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Key Stats
-  statsContainer: {
-    gap: 12,
-  },
-  statsRow: {
+  // Financial Data embedded
+  finPeriodTabs: {
     flexDirection: "row",
-    gap: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 10,
   },
-  statCard: {
+  finPeriodTab: {
     flex: 1,
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: "#8B5CF6",
+    paddingVertical: 7,
+    alignItems: "center",
+    borderRadius: 8,
   },
-  statLabel: {
+  finPeriodTabActive: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  finPeriodTabText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.45)",
+    fontWeight: "500",
+  },
+  finPeriodTabTextActive: {
+    color: "#FFF",
+    fontWeight: "600",
+  },
+  finSectionTabs: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  finSectionTab: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: "center",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  finSectionTabActive: {
+    backgroundColor: "#8B5CF6",
+    borderColor: "#8B5CF6",
+  },
+  finSectionTabText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "500",
+  },
+  finSectionTabTextActive: {
+    color: "#FFF",
+    fontWeight: "600",
+  },
+  finCard: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
+  },
+  finCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  finCardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  finCardSubtitle: {
     fontSize: 12,
-    color: "#A9A9A9",
+    color: "rgba(255,255,255,0.4)",
+  },
+  finRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  finRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  finRowLabel: {
+    fontSize: 14,
+    color: "#FFF",
+    fontWeight: "500",
+  },
+  finRowLabelBold: {
+    fontWeight: "700",
+  },
+  finRowSub: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.35)",
+    marginTop: 2,
+  },
+  finRowValue: {
+    fontSize: 14,
+    color: "#FFF",
+    fontWeight: "600",
+  },
+  finRowValueBold: {
+    fontWeight: "700",
+    color: "#8B5CF6",
+  },
+  finRowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  finChangeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  finChangeBadgePos: {
+    backgroundColor: "rgba(34,197,94,0.15)",
+  },
+  finChangeBadgeNeg: {
+    backgroundColor: "rgba(239,68,68,0.15)",
+  },
+  finChangeText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  finChangePos: {
+    color: "#22C55E",
+  },
+  finChangeNeg: {
+    color: "#EF4444",
+  },
+  bilanGroup: {
+    marginBottom: 0,
+  },
+  bilanGroupTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.4)",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  ratiosHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    marginTop: 2,
+  },
+  ratiosHeaderTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  ratiosToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  ratiosToggleText: {
+    fontSize: 13,
+    color: "#8B5CF6",
+    fontWeight: "600",
+  },
+  ratioCategoryLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.35)",
+    letterSpacing: 1.1,
+    marginTop: 16,
     marginBottom: 8,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "bold",
+  ratioItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  ratioTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  ratioItemLabel: {
+    fontSize: 14,
+    fontWeight: "600",
     color: "#FFF",
+  },
+  ratioItemValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  ratioItemSub: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.38)",
+    marginBottom: 8,
+  },
+  ratioBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  ratioBarTrack: {
+    flex: 1,
+    height: 3,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  ratioBarFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  ratioHint: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.3)",
+    minWidth: 90,
+    textAlign: "right",
   },
 
   // Events

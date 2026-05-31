@@ -131,6 +131,7 @@ function StockRow({ stock }: { stock: Stock }) {
         change: stock.percentVar?.toString() ?? 'N/A',
         logo: stock.logo || '',
         location: stock.country ?? '',
+        sector: stock.sector ?? '',
         website: stock.website ?? '',
         about: stock.summary ?? '',
         marketCap: formatMarketCap(stock.marketCap, stock.currency),

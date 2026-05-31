@@ -69,6 +69,7 @@ export default function FilterScreen() {
         change: stock.percentVar.toFixed(2),
         logo: stock.logo ?? '',
         location: stock.country ?? '',
+        sector: stock.sector ?? '',
         website: stock.website ?? '',
         about: stock.summary ?? '',
         marketCap: formatMarketCap(stock.marketCap, stock.currency),
