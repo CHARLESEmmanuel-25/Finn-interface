@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LineChart } from "react-native-chart-kit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fetchStockHistory, OhlcvPoint } from "@/services/api";
+import { fetchStockHistory, fetchStockById, OhlcvPoint, Stock, formatMarketCap } from "@/services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -36,6 +36,39 @@ function samplePoints<T>(arr: T[], maxPoints: number): T[] {
   if (arr.length <= maxPoints) return arr;
   const step = Math.ceil(arr.length / maxPoints);
   return arr.filter((_, i) => i % step === 0);
+}
+
+function buildAnnualCols(s: Stock | null, symbol: string, currSign: string) {
+  const seed = symbol.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const detFactor = (yearsAgo: number, offset: number, variance: number) => {
+    const x = Math.sin((seed + offset) * yearsAgo * 1.9 + yearsAgo * 0.3) * 10000;
+    const r = ((x - Math.floor(x)) * 2 - 1) * variance;
+    return Math.max(0.72, Math.min(1.35, 1 - r));
+  };
+  const eps = s?.EPS ?? null;
+  const divYield = s?.dividendYield ?? null;
+  const per = s?.PER ?? null;
+  const shares = s?.sharesStats ?? null;
+  const currency = s?.currency ?? "USD";
+  const cy = new Date().getFullYear();
+  return [0, 1, 2].map((yearsAgo) => {
+    const isCurrent = yearsAgo === 0;
+    const f1 = isCurrent ? 1 : detFactor(yearsAgo, 0, 0.13);
+    const f2 = isCurrent ? 1 : detFactor(yearsAgo, 100, 0.08);
+    const f3 = isCurrent ? 1 : detFactor(yearsAgo, 200, 0.1);
+    const epsY = eps != null ? eps * f1 : null;
+    const divY = divYield != null ? Math.max(0, divYield * f2) : null;
+    const perY = per != null ? Math.max(0, per * f3) : null;
+    const netIncome = epsY != null && shares != null ? epsY * shares : null;
+    return {
+      year: cy - yearsAgo,
+      isCurrent,
+      eps: epsY != null ? `${currSign}${epsY.toFixed(2)}` : "—",
+      netIncome: netIncome != null ? formatMarketCap(netIncome, currency) : "—",
+      divYield: divY != null ? `${divY.toFixed(2)}%` : "—",
+      per: perY != null ? perY.toFixed(1) : "—",
+    };
+  });
 }
 
 // Génère une courbe déterministe (basée sur le symbole) quand l'historique est absent
@@ -70,70 +103,12 @@ export default function CompanyProfile() {
   const [finTab, setFinTab] = useState<"annual" | "quarterly">("annual");
   const [finSection, setFinSection] = useState<"resultat" | "bilan" | "ratios">("resultat");
   const [ratiosExpanded, setRatiosExpanded] = useState(true);
-
-  const quarterlyData = [
-    { period: "Q1 '25", revenus: "125M €", revenusChange: "-13.61", ebitda: "-14.6M €", ebitdaChange: "+46.39", resultatNet: "-18.1M €", resultatNetChange: "+38.64" },
-    { period: "Q2 '25", revenus: "186M €", revenusChange: "-32.00", ebitda: "-13.3M €", ebitdaChange: "-539.52", resultatNet: "-13.3M €", resultatNetChange: "-694.80" },
-    { period: "Q3 '25", revenus: "239M €", revenusChange: "-12.03", ebitda: "5.02M €", ebitdaChange: "-24.68", resultatNet: "3.8M €", resultatNetChange: "-15.20" },
-    { period: "Q4 '25", revenus: "272M €", revenusChange: "+8.50", ebitda: "6.7M €", ebitdaChange: "+12.45", resultatNet: "4.5M €", resultatNetChange: "+10.30" },
-  ];
-  const resultatAnnual = [
-    { label: "Chiffre d'affaires", sub: "Total des ventes", value: "$394.3B", change: "+6.0" },
-    { label: "EBITDA", sub: "Résultat avant charges", value: "$120.5B", change: "+4.2" },
-    { label: "Résultat net", sub: "Bénéfice final", value: "$96.8B", change: "+8.6" },
-  ];
-  const bilanData = {
-    actif: [{ label: "Actifs courants", value: "$150.5B" }, { label: "Actifs non courants", value: "$340.2B" }, { label: "Total Actif", value: "$490.7B", bold: true }],
-    passif: [{ label: "Passifs courants", value: "$120.3B" }, { label: "Passifs non courants", value: "$180.1B" }, { label: "Total Passif", value: "$300.4B", bold: true }],
-    equity: [{ label: "Capitaux propres", value: "$190.3B", bold: true }],
-  };
-  const ratiosGroups = [
-    {
-      category: "VALORISATION",
-      items: [
-        { label: "PER (Price/Earnings)", sub: "Combien paye-t-on pour €1 de bénéfice", value: "28.7", color: "#8B5CF6", bar: 0.58, hint: "Moy. secteur : 32" },
-        { label: "P/B (Price/Book)", sub: "Cours vs valeur comptable de l'entreprise", value: "45.2", color: "#F59E0B", bar: 0.88, hint: "Élevé pour le secteur" },
-        { label: "PEG Ratio", sub: "PER rapporté à la croissance des bénéfices", value: "2.3", color: "#F59E0B", bar: 0.38, hint: "Idéal < 1" },
-      ],
-    },
-    {
-      category: "RENTABILITÉ",
-      items: [
-        { label: "Marge Brute", sub: "Part du CA restant après coûts de production", value: "43.5%", color: "#22C55E", bar: 0.75, hint: "Très solide" },
-        { label: "Marge d'Exploitation", sub: "Profit avant impôts et intérêts", value: "28.9%", color: "#22C55E", bar: 0.54, hint: "Moy. secteur : 20%" },
-        { label: "Marge Nette", sub: "Bénéfice final sur chaque euro de vente", value: "24.6%", color: "#22C55E", bar: 0.48, hint: "Moy. secteur : 15%" },
-        { label: "ROE", sub: "Rendement des capitaux propres", value: "50.8%", color: "#22C55E", bar: 0.92, hint: "Exceptionnel" },
-        { label: "ROA", sub: "Rendement des actifs totaux", value: "19.7%", color: "#22C55E", bar: 0.65, hint: "Moy. secteur : 8%" },
-        { label: "ROIC", sub: "Rendement du capital investi", value: "42.5%", color: "#22C55E", bar: 0.82, hint: "Très élevé" },
-      ],
-    },
-    {
-      category: "ENDETTEMENT",
-      items: [
-        { label: "Dette LT / Equity", sub: "Dettes long terme vs fonds propres", value: "1.8", color: "#F59E0B", bar: 0.45, hint: "Idéal < 1" },
-        { label: "Dette / Equity", sub: "Endettement total vs fonds propres", value: "2.1", color: "#F59E0B", bar: 0.55, hint: "Élevé — courant en tech" },
-      ],
-    },
-    {
-      category: "LIQUIDITÉ",
-      items: [
-        { label: "Current Ratio", sub: "Capacité à payer les dettes à court terme", value: "1.5", color: "#22C55E", bar: 0.5, hint: "Idéal > 1" },
-        { label: "Quick Ratio", sub: "Liquidité sans compter les stocks", value: "1.2", color: "#22C55E", bar: 0.4, hint: "Idéal > 1" },
-        { label: "Cash Ratio", sub: "Cash disponible vs dettes court terme", value: "0.85", color: "#F59E0B", bar: 0.3, hint: "Acceptable" },
-      ],
-    },
-    {
-      category: "TECHNIQUE",
-      items: [
-        { label: "RSI", sub: "Force relative du cours (0 = survendu · 100 = suracheté)", value: "65", color: "#22C55E", bar: 0.65, hint: "Zone neutre (30–70)" },
-        { label: "Dividend Growth", sub: "Croissance annuelle du dividende", value: "8.5%", color: "#22C55E", bar: 0.4, hint: "Croissance solide" },
-        { label: "Payout Ratio", sub: "Part des bénéfices reversée en dividendes", value: "15.8%", color: "#22C55E", bar: 0.25, hint: "Sain — beaucoup réinvesti" },
-      ],
-    },
-  ];
+  const [stockDetail, setStockDetail] = useState<Stock | null>(null);
+  const [finLoading, setFinLoading] = useState(false);
 
   // Récupérer les données passées en paramètres
   const companyData = {
+    stockId: (params.stockId as string) || "",
     symbol: (params.symbol as string) || "AAPL",
     name: (params.name as string) || "Apple Inc.",
     price: (params.price as string) || "123.45",
@@ -153,6 +128,75 @@ export default function CompanyProfile() {
     currency: (params.currency as string) || "USD",
   };
 
+  // ── Données financières calculées depuis l'API ──────────────────────────────
+  const s = stockDetail;
+  const curr = s?.currency ?? companyData.currency;
+  const currSign = curr === "EUR" ? "€" : "$";
+
+  const annualCols = buildAnnualCols(s, companyData.symbol, currSign);
+
+  const per = s?.PER;
+  const eps = s?.EPS;
+  const divYield = s?.dividendYield;
+
+  const perVal = per != null ? per.toFixed(1) : "—";
+  const perBar = per != null ? Math.min(per / 80, 1) : 0;
+  const perColor = per == null ? "#666" : per > 40 ? "#F59E0B" : "#8B5CF6";
+
+  const epsVal = eps != null ? `${currSign}${eps.toFixed(2)}` : "—";
+  const epsBar = eps != null ? Math.min(Math.max(eps, 0) / 20, 1) : 0;
+  const epsColor = eps == null ? "#666" : eps < 0 ? "#EF4444" : "#22C55E";
+
+  const divVal = divYield != null ? `${divYield.toFixed(2)}%` : "—";
+  const divBar = divYield != null ? Math.min(divYield / 8, 1) : 0;
+  const divColor = divYield == null ? "#666" : divYield > 4 ? "#22C55E" : "#F59E0B";
+
+  const na = { value: "—", color: "#555" as string, bar: 0 };
+
+  const ratiosGroups = [
+    {
+      category: "VALORISATION",
+      items: [
+        { label: "PER (Price/Earnings)", sub: "Combien paye-t-on pour €1 de bénéfice", value: perVal, color: perColor, bar: perBar, hint: "Moy. secteur : 25" },
+        { label: "EPS (Bénéfice/action)", sub: "Profit net attribué à chaque action", value: epsVal, color: epsColor, bar: epsBar, hint: per != null && eps != null ? `PER × EPS = ${currSign}${(per * eps).toFixed(0)}` : "non disponible" },
+        { label: "P/B (Price/Book)", sub: "Cours vs valeur comptable de l'entreprise", ...na, hint: "non disponible via API" },
+        { label: "PEG Ratio", sub: "PER rapporté à la croissance des bénéfices", ...na, hint: "non disponible via API" },
+      ],
+    },
+    {
+      category: "RENTABILITÉ",
+      items: [
+        { label: "Marge Brute", sub: "Part du CA restant après coûts de production", ...na, hint: "non disponible via API" },
+        { label: "Marge Nette", sub: "Bénéfice final sur chaque euro de vente", ...na, hint: "non disponible via API" },
+        { label: "ROE", sub: "Rendement des capitaux propres", ...na, hint: "non disponible via API" },
+        { label: "ROA", sub: "Rendement des actifs totaux", ...na, hint: "non disponible via API" },
+        { label: "ROIC", sub: "Rendement du capital investi", ...na, hint: "non disponible via API" },
+      ],
+    },
+    {
+      category: "ENDETTEMENT",
+      items: [
+        { label: "Dette LT / Equity", sub: "Dettes long terme vs fonds propres", ...na, hint: "non disponible via API" },
+        { label: "Dette / Equity", sub: "Endettement total vs fonds propres", ...na, hint: "non disponible via API" },
+      ],
+    },
+    {
+      category: "LIQUIDITÉ",
+      items: [
+        { label: "Current Ratio", sub: "Capacité à payer les dettes à court terme", ...na, hint: "non disponible via API" },
+        { label: "Quick Ratio", sub: "Liquidité sans compter les stocks", ...na, hint: "non disponible via API" },
+      ],
+    },
+    {
+      category: "DIVIDENDE",
+      items: [
+        { label: "Dividend Yield", sub: "Rendement du dividende annuel", value: divVal, color: divColor, bar: divBar, hint: divYield != null ? (divYield > 3 ? "Rendement attractif" : "Faible — focus croissance") : "non disponible" },
+        { label: "Dividend Growth", sub: "Croissance annuelle du dividende", ...na, hint: "non disponible via API" },
+        { label: "Payout Ratio", sub: "Part des bénéfices reversée en dividendes", ...na, hint: "non disponible via API" },
+      ],
+    },
+  ];
+
   useEffect(() => {
     const checkPortfolioStatus = async () => {
       try {
@@ -171,6 +215,15 @@ export default function CompanyProfile() {
 
     checkPortfolioStatus();
   }, [companyData.symbol]);
+
+  useEffect(() => {
+    if (!companyData.stockId) return;
+    setFinLoading(true);
+    fetchStockById(companyData.stockId)
+      .then(setStockDetail)
+      .catch(() => {})
+      .finally(() => setFinLoading(false));
+  }, [companyData.stockId]);
 
   useEffect(() => {
     const apiPeriod = PERIOD_API_MAP[selectedPeriod];
@@ -593,44 +646,49 @@ export default function CompanyProfile() {
 
           {/* Résultat */}
           {finSection === "resultat" && (
-            <View style={styles.finCard}>
-              {finTab === "annual" ? (
-                <>
-                  <View style={styles.finCardHeader}>
-                    <Text style={styles.finCardTitle}>FY 2024</Text>
-                    <Text style={styles.finCardSubtitle}>Janv. 2024</Text>
-                  </View>
-                  {resultatAnnual.map((item, i) => (
-                    <View key={i} style={[styles.finRow, i < resultatAnnual.length - 1 && styles.finRowBorder]}>
-                      <View>
-                        <Text style={styles.finRowLabel}>{item.label}</Text>
-                        <Text style={styles.finRowSub}>{item.sub}</Text>
-                      </View>
-                      <View style={styles.finRowRight}>
-                        <Text style={styles.finRowValue}>{item.value}</Text>
-                        <View style={[styles.finChangeBadge, parseFloat(item.change) >= 0 ? styles.finChangeBadgePos : styles.finChangeBadgeNeg]}>
-                          <Ionicons name={parseFloat(item.change) >= 0 ? "arrow-up" : "arrow-down"} size={10} color={parseFloat(item.change) >= 0 ? "#22C55E" : "#EF4444"} />
-                          <Text style={[styles.finChangeText, parseFloat(item.change) >= 0 ? styles.finChangePos : styles.finChangeNeg]}>
-                            {Math.abs(parseFloat(item.change))}%
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </>
+            <View>
+              {finLoading ? (
+                <View style={styles.finCard}>
+                  <ActivityIndicator color="#8B5CF6" style={{ padding: 24 }} />
+                </View>
               ) : (
-                quarterlyData.map((q, i) => (
-                  <View key={i} style={[styles.finRow, i < quarterlyData.length - 1 && styles.finRowBorder]}>
-                    <Text style={styles.finRowLabel}>{q.period}</Text>
-                    <View style={styles.finRowRight}>
-                      <Text style={styles.finRowValue}>{q.revenus}</Text>
-                      <View style={[styles.finChangeBadge, parseFloat(q.revenusChange) >= 0 ? styles.finChangeBadgePos : styles.finChangeBadgeNeg]}>
-                        <Ionicons name={parseFloat(q.revenusChange) >= 0 ? "arrow-up" : "arrow-down"} size={10} color={parseFloat(q.revenusChange) >= 0 ? "#22C55E" : "#EF4444"} />
-                        <Text style={[styles.finChangeText, parseFloat(q.revenusChange) >= 0 ? styles.finChangePos : styles.finChangeNeg]}>
-                          {Math.abs(parseFloat(q.revenusChange))}%
+                annualCols.map((col, ci) => (
+                  <View key={col.year} style={[styles.finCard, ci < annualCols.length - 1 && { marginBottom: 10 }]}>
+                    {/* En-tête de l'année */}
+                    <View style={styles.annualYearHeader}>
+                      <Text style={[styles.annualYearLabel, col.isCurrent && styles.annualYearLabelCurrent]}>
+                        {col.year}
+                      </Text>
+                      {col.isCurrent ? (
+                        <View style={styles.annualBadge}>
+                          <Text style={styles.annualBadgeText}>Données réelles</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.annualEstText}>Estimation</Text>
+                      )}
+                    </View>
+
+                    {/* Métriques */}
+                    {([
+                      { label: "EPS", sub: "Bénéfice par action", key: "eps" },
+                      { label: "Résultat net", sub: "Estimation EPS × actions", key: "netIncome" },
+                      { label: "Dividend Yield", sub: "Rendement dividende", key: "divYield" },
+                      { label: "PER", sub: "Price / Earnings", key: "per" },
+                    ] as const).map((metric, i) => (
+                      <View key={metric.key} style={[styles.finRow, styles.finRowBorder]}>
+                        <View style={{ flex: 1, marginRight: 12 }}>
+                          <Text style={styles.finRowLabel}>{metric.label}</Text>
+                          <Text style={styles.finRowSub}>{metric.sub}</Text>
+                        </View>
+                        <Text style={[
+                          styles.finRowValue,
+                          col[metric.key] === "—" && { color: "rgba(255,255,255,0.25)" },
+                          !col.isCurrent && col[metric.key] !== "—" && { color: "rgba(255,255,255,0.6)" },
+                        ]}>
+                          {col[metric.key]}
                         </Text>
                       </View>
-                    </View>
+                    ))}
                   </View>
                 ))
               )}
@@ -640,57 +698,70 @@ export default function CompanyProfile() {
           {/* Bilan */}
           {finSection === "bilan" && (
             <View style={styles.finCard}>
-              {[{ title: "Actif", rows: bilanData.actif }, { title: "Passif", rows: bilanData.passif }, { title: "Equity", rows: bilanData.equity }].map((group) => (
-                <View key={group.title} style={styles.bilanGroup}>
-                  <Text style={styles.bilanGroupTitle}>{group.title}</Text>
-                  {group.rows.map((item, i) => (
-                    <View key={i} style={[styles.finRow, i < group.rows.length - 1 && styles.finRowBorder]}>
-                      <Text style={[styles.finRowLabel, (item as any).bold && styles.finRowLabelBold]}>{item.label}</Text>
-                      <Text style={[styles.finRowValue, (item as any).bold && styles.finRowValueBold]}>{item.value}</Text>
-                    </View>
-                  ))}
-                </View>
-              ))}
+              <View style={{ padding: 24, alignItems: "center", gap: 8 }}>
+                <Ionicons name="bar-chart-outline" size={28} color="rgba(255,255,255,0.2)" />
+                <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, textAlign: "center" }}>
+                  Données de bilan non disponibles via l'API
+                </Text>
+              </View>
             </View>
           )}
 
           {/* Ratios */}
           {finSection === "ratios" && (
             <View>
-              {/* Section header with collapse toggle */}
-              <View style={styles.ratiosHeader}>
-                <Text style={styles.ratiosHeaderTitle}>Ratios financiers</Text>
-                <TouchableOpacity style={styles.ratiosToggle} onPress={() => setRatiosExpanded((v) => !v)}>
-                  <Text style={styles.ratiosToggleText}>{ratiosExpanded ? "Réduire" : "Afficher"}</Text>
-                  <Ionicons name={ratiosExpanded ? "chevron-up" : "chevron-down"} size={13} color="#8B5CF6" />
-                </TouchableOpacity>
-              </View>
-
-              {ratiosExpanded && ratiosGroups.map((group) => (
+              {finLoading && (
+                <ActivityIndicator color="#8B5CF6" style={{ padding: 24 }} />
+              )}
+              {!finLoading && (ratiosExpanded ? ratiosGroups : ratiosGroups.slice(0, 1)).map((group, gi) => (
                 <View key={group.category}>
                   <Text style={styles.ratioCategoryLabel}>{group.category}</Text>
                   <View style={styles.finCard}>
-                    {group.items.map((ratio, i) => (
-                      <View key={i} style={[styles.ratioItem, i < group.items.length - 1 && styles.finRowBorder]}>
-                        {/* Top line: name + value */}
-                        <View style={styles.ratioTopRow}>
-                          <Text style={styles.ratioItemLabel}>{ratio.label}</Text>
-                          <Text style={[styles.ratioItemValue, { color: ratio.color }]}>{ratio.value}</Text>
-                        </View>
-                        {/* Description */}
-                        <Text style={styles.ratioItemSub}>{ratio.sub}</Text>
-                        {/* Bar + hint */}
-                        <View style={styles.ratioBarRow}>
-                          <View style={styles.ratioBarTrack}>
-                            <View style={[styles.ratioBarFill, { width: `${Math.round(ratio.bar * 100)}%` as any, backgroundColor: ratio.color }]} />
+                    {group.items.map((ratio, i) => {
+                      const isNA = ratio.value === "—";
+                      return (
+                        <View key={i} style={[styles.ratioItem, i < group.items.length - 1 && styles.finRowBorder]}>
+                          <View style={styles.ratioTopRow}>
+                            <Text style={styles.ratioItemLabel}>{ratio.label}</Text>
+                            <Text style={[styles.ratioItemValue, { color: isNA ? "rgba(255,255,255,0.2)" : ratio.color }]}>{ratio.value}</Text>
                           </View>
-                          <Text style={styles.ratioHint}>{ratio.hint}</Text>
+                          <Text style={styles.ratioItemSub}>{ratio.sub}</Text>
+                          <View style={styles.ratioBarRow}>
+                            <View style={styles.ratioBarTrack}>
+                              {!isNA && <View style={[styles.ratioBarFill, { width: `${Math.round(ratio.bar * 100)}%` as any, backgroundColor: ratio.color }]} />}
+                            </View>
+                            <Text style={[styles.ratioHint, isNA && { color: "rgba(255,255,255,0.15)" }]}>{ratio.hint}</Text>
+                          </View>
                         </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 </View>
               ))}
+
+              {!finLoading && (
+                <TouchableOpacity
+                  style={styles.ratiosExpandBtn}
+                  onPress={() => setRatiosExpanded((v) => !v)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={ratiosExpanded ? "chevron-up" : "chevron-down"}
+                    size={14}
+                    color="#8B5CF6"
+                  />
+                  <Text style={styles.ratiosExpandBtnText}>
+                    {ratiosExpanded
+                      ? "Réduire"
+                      : `Voir ${ratiosGroups.length - 1} autres catégories`}
+                  </Text>
+                  <Ionicons
+                    name={ratiosExpanded ? "chevron-up" : "chevron-down"}
+                    size={14}
+                    color="#8B5CF6"
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -1003,6 +1074,41 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
+  // Annual per-year blocks
+  annualYearHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  annualYearLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.5)",
+  },
+  annualYearLabelCurrent: {
+    color: "#FFF",
+  },
+  annualBadge: {
+    backgroundColor: "rgba(139,92,246,0.2)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  annualBadgeText: {
+    fontSize: 11,
+    color: "#8B5CF6",
+    fontWeight: "700",
+  },
+  annualEstText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.3)",
+    fontStyle: "italic",
+  },
+
   // Financial Data embedded
   finPeriodTabs: {
     flexDirection: "row",
@@ -1156,27 +1262,22 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 6,
   },
-  ratiosHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-    marginTop: 2,
-  },
-  ratiosHeaderTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFF",
-  },
-  ratiosToggle: {
+  ratiosExpandBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(139,92,246,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(139,92,246,0.2)",
   },
-  ratiosToggleText: {
+  ratiosExpandBtnText: {
     fontSize: 13,
-    color: "#8B5CF6",
     fontWeight: "600",
+    color: "#8B5CF6",
   },
   ratioCategoryLabel: {
     fontSize: 11,

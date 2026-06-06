@@ -95,6 +95,7 @@ export default function FrenchStocks() {
         price: stock.currentPrice.toFixed(2),
         change: stock.percentVar.toFixed(2),
         logo: stock.logo ?? "",
+        stockId: stock._id ?? "",
         location: stock.country ?? "",
         sector: stock.sector ?? "",
         website: stock.website ?? "",

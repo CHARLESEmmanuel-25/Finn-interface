@@ -130,6 +130,7 @@ function StockRow({ stock }: { stock: Stock }) {
         price: stock.currentPrice?.toString() ?? 'N/A',
         change: stock.percentVar?.toString() ?? 'N/A',
         logo: stock.logo || '',
+        stockId: stock._id ?? '',
         location: stock.country ?? '',
         sector: stock.sector ?? '',
         website: stock.website ?? '',
