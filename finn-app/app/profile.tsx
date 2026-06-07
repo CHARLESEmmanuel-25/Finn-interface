@@ -47,6 +47,8 @@ const avatarStyles = StyleSheet.create({
 
 export default function ProfileScreen() {
   const [apiUser, setApiUser] = useState<User | null>(null);
+  const [localName, setLocalName] = useState('');
+  const [localEmail, setLocalEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [notificationsOn, setNotificationsOn] = useState(true);
 
@@ -58,11 +60,15 @@ export default function ProfileScreen() {
         'notificationsEnabled',
       ]);
       if (notifVal !== null) setNotificationsOn(notifVal === 'true');
+      // Fallback immédiat depuis AsyncStorage
+      if (userJson) {
+        const parsed = JSON.parse(userJson);
+        setLocalName(parsed.fullName ?? `${parsed.firstName ?? ''} ${parsed.lastName ?? ''}`.trim());
+        setLocalEmail(parsed.email ?? '');
+      }
+      // Enrichissement via API
       if (userId) {
         fetchUser(userId).then(setApiUser).catch(() => {});
-      } else if (userJson) {
-        const parsed = JSON.parse(userJson);
-        setApiUser(parsed);
       }
     } catch {
       // silently continue
@@ -79,10 +85,12 @@ export default function ProfileScreen() {
   };
 
   const handlePersonalInfo = () => {
-    if (!apiUser) return;
+    const joinDate = apiUser?.createdAt
+      ? `\nCompte créé le : ${new Date(apiUser.createdAt).toLocaleDateString('fr-FR')}`
+      : '';
     Alert.alert(
       'Informations personnelles',
-      `Nom : ${apiUser.firstName} ${apiUser.lastName}\nEmail : ${apiUser.email}\nCompte créé le : ${new Date(apiUser.createdAt).toLocaleDateString('fr-FR')}`,
+      `Nom : ${displayName}\nEmail : ${displayEmail}${joinDate}`,
       [{ text: 'OK' }]
     );
   };
@@ -115,7 +123,8 @@ export default function ProfileScreen() {
 
   const displayName = apiUser
     ? `${apiUser.firstName} ${apiUser.lastName}`.trim()
-    : 'Utilisateur';
+    : localName || 'Utilisateur';
+  const displayEmail = apiUser?.email ?? localEmail;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -138,7 +147,7 @@ export default function ProfileScreen() {
           <View style={styles.userSection}>
             <InitialsAvatar name={displayName} size={96} />
             <Text style={styles.profileName}>{displayName}</Text>
-            <Text style={styles.profileEmail}>{apiUser?.email ?? ''}</Text>
+            <Text style={styles.profileEmail}>{displayEmail}</Text>
           </View>
 
           <View style={styles.section}>
