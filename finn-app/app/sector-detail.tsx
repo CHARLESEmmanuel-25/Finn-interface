@@ -53,7 +53,19 @@ export default function SectorDetailScreen() {
   const handleStockPress = (stock: Stock) => {
     router.push({
       pathname: "/company-profile",
-      params: { id: stock._id, symbol: stock.symbol },
+      params: {
+        stockId: stock._id,
+        symbol: stock.symbol,
+        name: stock.shortName,
+        price: stock.currentPrice?.toString() ?? "0",
+        change: stock.percentVar?.toString() ?? "0",
+        logo: stock.logo ?? "",
+        location: stock.country ?? "",
+        sector: stock.sector ?? "",
+        website: stock.website ?? "",
+        about: stock.summary ?? "",
+        currency: stock.currency,
+      },
     } as any);
   };
 

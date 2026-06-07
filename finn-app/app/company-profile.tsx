@@ -109,7 +109,7 @@ export default function CompanyProfile() {
 
   // Récupérer les données passées en paramètres
   const companyData = {
-    stockId: (params.stockId as string) || "",
+    stockId: (params.stockId as string) || (params.id as string) || "",
     symbol: (params.symbol as string) || "AAPL",
     name: (params.name as string) || "Apple Inc.",
     price: (params.price as string) || "123.45",
