@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   StatusBar,
   Alert,
+  Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,29 +16,84 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchUser, User } from '@/services/api';
 
-export default function ProfileScreen() {
-  const [userData, setUserData] = useState<any>(null);
-  const [apiUser, setApiUser] = useState<User | null>(null);
+const PURPLE = '#8B5CF6';
+const RED = '#EF4444';
 
-  useEffect(() => {
-    loadUserData();
+function InitialsAvatar({ name, size = 100 }: { name: string; size?: number }) {
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+
+  return (
+    <View style={[avatarStyles.circle, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Text style={[avatarStyles.text, { fontSize: size * 0.36 }]}>{initials || '?'}</Text>
+    </View>
+  );
+}
+
+const avatarStyles = StyleSheet.create({
+  circle: {
+    backgroundColor: 'rgba(139,92,246,0.25)',
+    borderWidth: 2,
+    borderColor: PURPLE,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  text: { color: '#FFF', fontWeight: '700' },
+});
+
+export default function ProfileScreen() {
+  const [apiUser, setApiUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notificationsOn, setNotificationsOn] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const [[, userJson], [, userId], [, notifVal]] = await AsyncStorage.multiGet([
+        'userData',
+        'userId',
+        'notificationsEnabled',
+      ]);
+      if (notifVal !== null) setNotificationsOn(notifVal === 'true');
+      if (userId) {
+        fetchUser(userId).then(setApiUser).catch(() => {});
+      } else if (userJson) {
+        const parsed = JSON.parse(userJson);
+        setApiUser(parsed);
+      }
+    } catch {
+      // silently continue
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const loadUserData = async () => {
-    try {
-      const [userInfo, userId] = await AsyncStorage.multiGet(['userData', 'userId']);
-      if (userInfo[1]) setUserData(JSON.parse(userInfo[1]));
-      if (userId[1]) {
-        fetchUser(userId[1]).then(setApiUser).catch(() => {});
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des données utilisateur:', error);
-    }
+  useEffect(() => { load(); }, [load]);
+
+  const toggleNotifications = async (val: boolean) => {
+    setNotificationsOn(val);
+    await AsyncStorage.setItem('notificationsEnabled', String(val));
   };
 
-  const displayName = apiUser
-    ? `${apiUser.firstName} ${apiUser.lastName}`.trim()
-    : userData?.fullName ?? '';
+  const handlePersonalInfo = () => {
+    if (!apiUser) return;
+    Alert.alert(
+      'Informations personnelles',
+      `Nom : ${apiUser.firstName} ${apiUser.lastName}\nEmail : ${apiUser.email}\nCompte créé le : ${new Date(apiUser.createdAt).toLocaleDateString('fr-FR')}`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleHelp = () => {
+    Alert.alert(
+      'Aide & Support',
+      'Pour toute question, contactez-nous à support@finn-app.com\n\nVersion 1.0.0',
+      [{ text: 'OK' }]
+    );
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -49,285 +105,178 @@ export default function ProfileScreen() {
           text: 'Déconnexion',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await AsyncStorage.removeItem('isLoggedIn');
-              await AsyncStorage.removeItem('userData');
-              router.replace('/login');
-            } catch (error) {
-              console.error('Erreur lors de la déconnexion:', error);
-            }
+            await AsyncStorage.multiRemove(['isLoggedIn', 'userData', 'userId']);
+            router.replace('/login');
           },
         },
       ]
     );
   };
 
-  if (!userData) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#000" />
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Chargement...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const displayName = apiUser
+    ? `${apiUser.firstName} ${apiUser.lastName}`.trim()
+    : 'Utilisateur';
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
-      
-      {/* En-tête */}
+      <StatusBar barStyle="light-content" backgroundColor="#0A0A0F" />
+
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#FFF" />
+          <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Profile</Text>
-        <TouchableOpacity style={styles.notificationButton}>
-          <Ionicons name="notifications-outline" size={24} color="#FFF" />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Mon Profil</Text>
+        <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Informations utilisateur */}
-        <View style={styles.userSection}>
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face' }}
-            style={styles.profileImage}
-          />
-          <Text style={styles.profileName}>{displayName}</Text>
-          <Text style={styles.profileType}>{apiUser?.email ?? userData?.email ?? 'Individual Investor'}</Text>
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={PURPLE} />
         </View>
-
-        {/* Tracked Stocks */}
-        {/* <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tracked Stocks</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trackedStocksScroll}>
-            <TrackedStockCard symbol="AAPL" name="Apple" price="$191.12" />
-            <TrackedStockCard symbol="GOOGL" name="Google" price="$142.50" />
-            <TrackedStockCard symbol="AMZN" name="Amazon" price="$139.83" />
-          </ScrollView>
-        </View> */}
-
-        {/* General Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>General Settings</Text>
-          <View style={styles.settingsList}>
-            <SettingsItem 
-              icon="person-outline" 
-              title="Personal Information" 
-              onPress={() => console.log('Personal Information')} 
-            />
-            <SettingsItem 
-              icon="shield-checkmark-outline" 
-              title="Security" 
-              onPress={() => console.log('Security')} 
-            />
-            <SettingsItem 
-              icon="language-outline" 
-              title="Language" 
-              value="English" 
-              onPress={() => console.log('Language')} 
-            />
-            <SettingsItem 
-              icon="location-outline" 
-              title="Location" 
-              value="Pakistan" 
-              onPress={() => console.log('Location')} 
-            />
-            <SettingsItem 
-              icon="notifications-outline" 
-              title="Notifications" 
-              value="On" 
-              onPress={() => console.log('Notifications')} 
-            />
-            <SettingsItem 
-              icon="alert-circle-outline" 
-              title="My Alerts" 
-              onPress={() => console.log('My Alerts')} 
-            />
-            <SettingsItem 
-              icon="moon-outline" 
-              title="Theme" 
-              value="Dark" 
-              onPress={() => console.log('Theme')} 
-            />
-            <SettingsItem 
-              icon="help-circle-outline" 
-              title="Help & Support" 
-              onPress={() => console.log('Help & Support')} 
-            />
-            <SettingsItem 
-              icon="log-out-outline" 
-              title="Logout" 
-              onPress={handleLogout}
-              isDestructive={true}
-            />
+      ) : (
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <View style={styles.userSection}>
+            <InitialsAvatar name={displayName} size={96} />
+            <Text style={styles.profileName}>{displayName}</Text>
+            <Text style={styles.profileEmail}>{apiUser?.email ?? ''}</Text>
           </View>
-        </View>
 
-        {/* Espace pour la navigation en bas */}
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Paramètres</Text>
+            <View style={styles.settingsList}>
+              <SettingsItem
+                icon="person-outline"
+                title="Informations personnelles"
+                onPress={handlePersonalInfo}
+              />
+              <SettingsRow
+                icon="notifications-outline"
+                title="Notifications"
+                right={
+                  <Switch
+                    value={notificationsOn}
+                    onValueChange={toggleNotifications}
+                    trackColor={{ false: '#2A2A2A', true: 'rgba(139,92,246,0.5)' }}
+                    thumbColor={notificationsOn ? PURPLE : '#666'}
+                  />
+                }
+              />
+              <SettingsItem
+                icon="help-circle-outline"
+                title="Aide & Support"
+                onPress={handleHelp}
+              />
+              <SettingsItem
+                icon="log-out-outline"
+                title="Déconnexion"
+                onPress={handleLogout}
+                isDestructive
+              />
+            </View>
+          </View>
+
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
-// Composant pour les stocks suivis
-const TrackedStockCard = ({ symbol, name, price }: any) => (
-  <View style={styles.trackedStockCard}>
-    <View style={styles.stockIcon}>
-      <Text style={styles.stockSymbol}>{symbol}</Text>
-    </View>
-    <Text style={styles.stockName}>{name}</Text>
-    <Text style={styles.stockPrice}>{price}</Text>
-  </View>
-);
+function SettingsItem({
+  icon,
+  title,
+  value,
+  onPress,
+  isDestructive = false,
+}: {
+  icon: string;
+  title: string;
+  value?: string;
+  onPress: () => void;
+  isDestructive?: boolean;
+}) {
+  return (
+    <TouchableOpacity style={styles.settingsItem} onPress={onPress}>
+      <View style={styles.settingsLeft}>
+        <Ionicons name={icon as any} size={20} color={isDestructive ? RED : PURPLE} />
+        <Text style={[styles.settingsTitle, isDestructive && { color: RED }]}>{title}</Text>
+      </View>
+      <View style={styles.settingsRight}>
+        {value && <Text style={styles.settingsValue}>{value}</Text>}
+        <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.25)" />
+      </View>
+    </TouchableOpacity>
+  );
+}
 
-// Composant pour les éléments de paramètres
-const SettingsItem = ({ icon, title, value, onPress, isDestructive = false }: any) => (
-  <TouchableOpacity style={styles.settingsItem} onPress={onPress}>
-    <View style={styles.settingsItemLeft}>
-      <Ionicons 
-        name={icon} 
-        size={20} 
-        color={isDestructive ? "#FF3B30" : "#8B5CF6"} 
-      />
-      <Text style={[styles.settingsItemTitle, isDestructive && styles.destructiveText]}>
-        {title}
-      </Text>
+function SettingsRow({
+  icon,
+  title,
+  right,
+}: {
+  icon: string;
+  title: string;
+  right: React.ReactNode;
+}) {
+  return (
+    <View style={styles.settingsItem}>
+      <View style={styles.settingsLeft}>
+        <Ionicons name={icon as any} size={20} color={PURPLE} />
+        <Text style={styles.settingsTitle}>{title}</Text>
+      </View>
+      {right}
     </View>
-    <View style={styles.settingsItemRight}>
-      {value && (
-        <Text style={[styles.settingsItemValue, isDestructive && styles.destructiveText]}>
-          {value}
-        </Text>
-      )}
-      <Ionicons 
-        name="chevron-forward" 
-        size={16} 
-        color="#666" 
-      />
-    </View>
-  </TouchableOpacity>
-);
+  );
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#FFF',
-    fontSize: 16,
-  },
+  container: { flex: 1, backgroundColor: '#0A0A0F' },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingVertical: 12,
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  notificationButton: {
-    padding: 8,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  
-  // Section utilisateur
+  backButton: { padding: 8 },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: '#FFF' },
+  placeholder: { width: 40 },
+
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  scrollView: { flex: 1 },
+
   userSection: {
     alignItems: 'center',
-    paddingVertical: 30,
+    paddingVertical: 32,
     paddingHorizontal: 20,
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 16,
-    borderWidth: 3,
-    borderColor: '#8B5CF6',
+    gap: 8,
   },
   profileName: {
     color: '#FFF',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginTop: 8,
   },
-  profileType: {
-    color: '#A9A9A9',
-    fontSize: 16,
+  profileEmail: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 14,
   },
-  
-  // Sections
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
+
+  section: { paddingHorizontal: 20, marginBottom: 30 },
   sectionTitle: {
     color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
   },
-  
-  // Stocks suivis
-  trackedStocksScroll: {
-    paddingLeft: 0,
-  },
-  trackedStockCard: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginRight: 16,
-    minWidth: 100,
-  },
-  stockIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#8B5CF620',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  stockSymbol: {
-    color: '#8B5CF6',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  stockName: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  stockPrice: {
-    color: '#4CD964',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  
-  // Paramètres
+
   settingsList: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
   },
   settingsItem: {
@@ -337,31 +286,17 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
-  settingsItemLeft: {
+  settingsLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     flex: 1,
   },
-  settingsItemTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    marginLeft: 12,
-  },
-  settingsItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingsItemValue: {
-    color: '#A9A9A9',
-    fontSize: 14,
-    marginRight: 8,
-  },
-  destructiveText: {
-    color: '#FF3B30',
-  },
-  bottomSpacer: {
-    height: 100,
-  },
+  settingsTitle: { color: '#FFF', fontSize: 15 },
+  settingsRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  settingsValue: { color: 'rgba(255,255,255,0.45)', fontSize: 14 },
+
+  bottomSpacer: { height: 60 },
 });
