@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LineChart } from "react-native-chart-kit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fetchStockHistory, fetchStockById, fetchFavorites, toggleFavorite, OhlcvPoint, Stock, formatMarketCap } from "@/services/api";
+import { fetchStockHistory, fetchStockById, OhlcvPoint, Stock, formatMarketCap } from "@/services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -95,8 +95,6 @@ function generateSyntheticData(
 export default function CompanyProfile() {
   const params = useLocalSearchParams();
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1D");
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [isInPortfolio, setIsInPortfolio] = useState(false);
   const [history, setHistory] = useState<OhlcvPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -201,24 +199,10 @@ export default function CompanyProfile() {
   useEffect(() => {
     const init = async () => {
       try {
-        const [[, portfolioData], [, rawUid], [, userJson]] = await AsyncStorage.multiGet(["portfolio", "userId", "userData"]);
+        const [[, portfolioData]] = await AsyncStorage.multiGet(["portfolio"]);
         if (portfolioData) {
           const portfolio = JSON.parse(portfolioData);
           setIsInPortfolio(portfolio.some((item: any) => item.symbol === companyData.symbol));
-        }
-        // Fallback sur userData.userId si userId direct est absent ou corrompu
-        const parsedUser = userJson ? JSON.parse(userJson) : null;
-        const uid = (rawUid && rawUid !== "undefined") ? rawUid : parsedUser?.userId ?? null;
-        if (uid) {
-          setUserId(uid);
-          fetchFavorites(uid)
-            .then((favs) => {
-              const isFav = favs.some(
-                (f) => f._id === companyData.stockId || f.symbol === companyData.symbol
-              );
-              setIsBookmarked(isFav);
-            })
-            .catch(() => {});
         }
       } catch (error) {
         console.error("Erreur lors de l'initialisation:", error);
@@ -248,21 +232,6 @@ export default function CompanyProfile() {
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
   }, [companyData.symbol, selectedPeriod]);
-
-  const handleToggleBookmark = async () => {
-    if (!userId || !companyData.stockId) {
-      Alert.alert("Connexion requise", "Connectez-vous pour gérer vos favoris.");
-      return;
-    }
-    const next = !isBookmarked;
-    setIsBookmarked(next); // optimiste
-    try {
-      await toggleFavorite(userId, companyData.stockId);
-    } catch {
-      setIsBookmarked(!next); // revert si erreur
-      Alert.alert("Erreur", "Impossible de mettre à jour les favoris.");
-    }
-  };
 
   const handleTogglePortfolio = async () => {
     try {
@@ -335,34 +304,16 @@ export default function CompanyProfile() {
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Company Profile</Text>
-        <View
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            gap: 4,
-          }}
+        <TouchableOpacity
+          style={styles.bookmarkButton}
+          onPress={handleTogglePortfolio}
         >
-          <TouchableOpacity
-            style={styles.bookmarkButton}
-            onPress={handleToggleBookmark}
-          >
-            <Ionicons
-              name={isBookmarked ? "bookmark" : "bookmark-outline"}
-              size={24}
-              color="#FFF"
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.bookmarkButton}
-            onPress={handleTogglePortfolio}
-          >
-            <Ionicons
-              name={isInPortfolio ? "bag-remove" : "bag-add"}
-              size={24}
-              color={isInPortfolio ? "#8B5CF6" : "#FFF"}
-            />
-          </TouchableOpacity>
-        </View>
+          <Ionicons
+            name={isInPortfolio ? "bag-remove" : "bag-add"}
+            size={24}
+            color={isInPortfolio ? "#8B5CF6" : "#FFF"}
+          />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
