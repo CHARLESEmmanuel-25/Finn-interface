@@ -61,14 +61,18 @@ export default function ProfileScreen() {
       ]);
       if (notifVal !== null) setNotificationsOn(notifVal === 'true');
       // Fallback immédiat depuis AsyncStorage
+      let parsed: any = null;
       if (userJson) {
-        const parsed = JSON.parse(userJson);
+        parsed = JSON.parse(userJson);
         setLocalName(parsed.fullName ?? `${parsed.firstName ?? ''} ${parsed.lastName ?? ''}`.trim());
         setLocalEmail(parsed.email ?? '');
       }
-      // Enrichissement via API
-      if (userId) {
-        fetchUser(userId).then(setApiUser).catch(() => {});
+      // Fallback sur userData.userId si userId direct est corrompu
+      const cleanUserId =
+        (userId && userId !== 'undefined') ? userId :
+        (parsed?.userId && parsed.userId !== 'undefined') ? parsed.userId : null;
+      if (cleanUserId) {
+        fetchUser(cleanUserId).then(setApiUser).catch(() => {});
       }
     } catch {
       // silently continue

@@ -201,11 +201,14 @@ export default function CompanyProfile() {
   useEffect(() => {
     const init = async () => {
       try {
-        const [[, portfolioData], [, uid]] = await AsyncStorage.multiGet(["portfolio", "userId"]);
+        const [[, portfolioData], [, rawUid], [, userJson]] = await AsyncStorage.multiGet(["portfolio", "userId", "userData"]);
         if (portfolioData) {
           const portfolio = JSON.parse(portfolioData);
           setIsInPortfolio(portfolio.some((item: any) => item.symbol === companyData.symbol));
         }
+        // Fallback sur userData.userId si userId direct est absent ou corrompu
+        const parsedUser = userJson ? JSON.parse(userJson) : null;
+        const uid = (rawUid && rawUid !== "undefined") ? rawUid : parsedUser?.userId ?? null;
         if (uid) {
           setUserId(uid);
           fetchFavorites(uid)
