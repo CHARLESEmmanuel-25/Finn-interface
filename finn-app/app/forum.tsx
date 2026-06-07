@@ -8,7 +8,6 @@ import {
   ScrollView,
   TextInput,
   RefreshControl,
-  Image,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -159,13 +158,8 @@ export default function ForumScreen() {
           {/* Create post */}
           {userData && (
             <View style={styles.createPost}>
-              <View style={styles.createPostAvatar}>
-                <Image
-                  source={{
-                    uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
-                  }}
-                  style={styles.avatar}
-                />
+              <View style={styles.userAvatar}>
+                <Text style={styles.userAvatarText}>{getInitials(userData.fullName)}</Text>
               </View>
               <View style={styles.createPostInputRow}>
                 <TextInput
@@ -379,11 +373,18 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     gap: 12,
   },
-  createPostAvatar: {},
-  avatar: {
+  userAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: "#8B5CF6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  userAvatarText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "bold",
   },
   createPostInputRow: {
     flex: 1,
