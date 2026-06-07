@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Text,
   View,
@@ -6,316 +6,236 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  fetchStockById,
+  searchStocks,
+  Stock,
+  formatMarketCap,
+  formatShares,
+} from "@/services/api";
+
+const GREEN = "#22C55E";
+const RED = "#EF4444";
+const PURPLE = "#8B5CF6";
+
+function fmt(val: number | null | undefined, suffix = "", decimals = 2): string {
+  if (val == null || isNaN(val)) return "—";
+  return `${val.toFixed(decimals)}${suffix}`;
+}
+
+function fmtCurrency(val: number | null | undefined, currency: string): string {
+  if (val == null || isNaN(val)) return "—";
+  const sym = currency === "EUR" ? "€" : "$";
+  return `${sym}${val.toFixed(2)}`;
+}
 
 export default function FinancialData() {
   const params = useLocalSearchParams();
+  const stockId = params.id as string | undefined;
+  const symbol = params.symbol as string || "";
+  const companyName = params.name as string || symbol;
+
   const [selectedTab, setSelectedTab] = useState<"annual" | "quarterly">("annual");
-  const [selectedSection, setSelectedSection] = useState<"bilan" | "resultat" | "ratios">("resultat");
+  const [selectedSection, setSelectedSection] = useState<"resultat" | "bilan" | "ratios">("resultat");
+  const [stock, setStock] = useState<Stock | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const companySymbol = params.symbol as string || "AAPL";
-  const companyName = params.name as string || "Apple Inc.";
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      let s: Stock;
+      if (stockId) {
+        s = await fetchStockById(stockId);
+      } else {
+        const results = await searchStocks(symbol);
+        const exact = results.find(
+          (r) => r.symbol.toUpperCase() === symbol.toUpperCase()
+        );
+        s = exact ?? results[0];
+        if (!s) throw new Error("Action introuvable");
+      }
+      setStock(s);
+    } catch (e: any) {
+      setError(e.message ?? "Erreur de chargement");
+    } finally {
+      setLoading(false);
+    }
+  }, [stockId, symbol]);
 
-  // Données financières par trimestre
-  const quarterlyData = [
-    {
-      period: "Q1 '25",
-      revenus: "125M €",
-      revenusChange: "-13.61",
-      ebitda: "-14.6M €",
-      ebitdaChange: "+46.39",
-      resultatNet: "-18.1M €",
-      resultatNetChange: "+38.64",
-    },
-    {
-      period: "Q2 '25",
-      revenus: "186M €",
-      revenusChange: "-32.00",
-      ebitda: "-13.3M €",
-      ebitdaChange: "-539.52",
-      resultatNet: "-13.3M €",
-      resultatNetChange: "-694.80",
-    },
-    {
-      period: "Q3 '25",
-      revenus: "239M €",
-      revenusChange: "-12.03",
-      ebitda: "5.02M €",
-      ebitdaChange: "-24.68",
-      resultatNet: "3.8M €",
-      resultatNetChange: "-15.20",
-    },
-    {
-      period: "Q4 '25",
-      revenus: "272M €",
-      revenusChange: "+8.50",
-      ebitda: "6.7M €",
-      ebitdaChange: "+12.45",
-      resultatNet: "4.5M €",
-      resultatNetChange: "+10.30",
-    },
+  useEffect(() => { load(); }, [load]);
+
+  const currency = stock?.currency ?? "USD";
+  const currSym = currency === "EUR" ? "€" : "$";
+
+  const netIncomeEst =
+    stock?.EPS != null && stock?.sharesStats != null
+      ? stock.EPS * stock.sharesStats
+      : null;
+
+  const ratios: { label: string; value: string; available: boolean }[] = [
+    { label: "PER (Price/Earnings)", value: fmt(stock?.PER, "", 1), available: stock?.PER != null },
+    { label: "EPS", value: stock?.EPS != null ? fmtCurrency(stock.EPS, currency) : "—", available: stock?.EPS != null },
+    { label: "Rendement dividende", value: fmt(stock?.dividendYield, "%"), available: stock?.dividendYield != null },
+    { label: "Capitalisation", value: stock ? formatMarketCap(stock.marketCap, currency) : "—", available: stock?.marketCap != null },
+    { label: "Actions en circulation", value: stock ? formatShares(stock.sharesStats) : "—", available: stock?.sharesStats != null },
+    { label: "P/B (Price/Book)", value: "—", available: false },
+    { label: "Marge brute", value: "—", available: false },
+    { label: "Marge nette", value: "—", available: false },
+    { label: "ROE", value: "—", available: false },
+    { label: "ROA", value: "—", available: false },
+    { label: "Dette/Equity", value: "—", available: false },
   ];
 
-  // Données du bilan
-  const bilanData = {
-    actif: [
-      { label: "Actifs courants", value: "$150.5B" },
-      { label: "Actifs non courants", value: "$340.2B" },
-      { label: "Total Actif", value: "$490.7B", bold: true },
-    ],
-    passif: [
-      { label: "Passifs courants", value: "$120.3B" },
-      { label: "Passifs non courants", value: "$180.1B" },
-      { label: "Total Passif", value: "$300.4B", bold: true },
-    ],
-    equity: [
-      { label: "Capitaux propres", value: "$190.3B", bold: true },
-    ],
-  };
-
-  // Données du compte de résultat
-  const resultatData = [
-    { label: "Chiffre d'affaires", value: "$394.3B" },
-    { label: "EBITDA", value: "$120.5B" },
-    { label: "Résultat d'exploitation", value: "$110.2B" },
-    { label: "Résultat net", value: "$96.8B" },
-  ];
-
-  // Ratios financiers
-  const ratiosData = [
-    { label: "PER (Price/Earnings)", value: "28.7" },
-    { label: "P/B (Price/Book)", value: "45.2" },
-    { label: "PEG", value: "2.3" },
-    { label: "Marge Brute", value: "43.5%" },
-    { label: "Marge d'Exploitation", value: "28.9%" },
-    { label: "Marge Nette", value: "24.6%" },
-    { label: "Dette LT/Equity", value: "1.8" },
-    { label: "Dette/Equity", value: "2.1" },
-    { label: "Cash Ratio", value: "0.85" },
-    { label: "Quick Ratio", value: "1.2" },
-    { label: "Current Ratio", value: "1.5" },
-    { label: "ROIC", value: "42.5%" },
-    { label: "RSI", value: "65" },
-    { label: "ROE", value: "50.8%" },
-    { label: "ROA", value: "19.7%" },
-    { label: "Dividend Growth", value: "8.5%" },
-    { label: "Dividend Yield", value: "0.55%" },
-    { label: "Payout Ratio", value: "15.8%" },
+  const annualResults: { label: string; value: string; available: boolean }[] = [
+    { label: "EPS", value: stock?.EPS != null ? fmtCurrency(stock.EPS, currency) : "—", available: stock?.EPS != null },
+    { label: "Résultat net (estimé)", value: netIncomeEst != null ? formatMarketCap(netIncomeEst, currency) : "—", available: netIncomeEst != null },
+    { label: "Rendement dividende", value: fmt(stock?.dividendYield, "%"), available: stock?.dividendYield != null },
+    { label: "Chiffre d'affaires", value: "—", available: false },
+    { label: "EBITDA", value: "—", available: false },
+    { label: "Résultat d'exploitation", value: "—", available: false },
   ];
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Données Financières</Text>
-          <Text style={styles.headerSubtitle}>{companyName} ({companySymbol})</Text>
+          <Text style={styles.headerSubtitle}>
+            {companyName}{symbol ? ` (${symbol})` : ""}
+          </Text>
         </View>
         <View style={styles.placeholder} />
       </View>
 
-      {/* Tabs: Annuel / Trimestre */}
       <View style={styles.periodTabs}>
-        <TouchableOpacity
-          style={[styles.periodTab, selectedTab === "annual" && styles.periodTabActive]}
-          onPress={() => setSelectedTab("annual")}
-        >
-          <Text style={[styles.periodTabText, selectedTab === "annual" && styles.periodTabTextActive]}>
-            Annuellement
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.periodTab, selectedTab === "quarterly" && styles.periodTabActive]}
-          onPress={() => setSelectedTab("quarterly")}
-        >
-          <Text style={[styles.periodTabText, selectedTab === "quarterly" && styles.periodTabTextActive]}>
-            Trimestre
-          </Text>
-        </TouchableOpacity>
+        {(["annual", "quarterly"] as const).map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.periodTab, selectedTab === tab && styles.periodTabActive]}
+            onPress={() => setSelectedTab(tab)}
+          >
+            <Text style={[styles.periodTabText, selectedTab === tab && styles.periodTabTextActive]}>
+              {tab === "annual" ? "Annuellement" : "Trimestre"}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Section Tabs: Bilan / Compte de résultat / Ratios */}
       <View style={styles.sectionTabs}>
-        <TouchableOpacity
-          style={[styles.sectionTab, selectedSection === "bilan" && styles.sectionTabActive]}
-          onPress={() => setSelectedSection("bilan")}
-        >
-          <Text style={[styles.sectionTabText, selectedSection === "bilan" && styles.sectionTabTextActive]}>
-            Bilan
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sectionTab, selectedSection === "resultat" && styles.sectionTabActive]}
-          onPress={() => setSelectedSection("resultat")}
-        >
-          <Text style={[styles.sectionTabText, selectedSection === "resultat" && styles.sectionTabTextActive]}>
-            Résultat
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sectionTab, selectedSection === "ratios" && styles.sectionTabActive]}
-          onPress={() => setSelectedSection("ratios")}
-        >
-          <Text style={[styles.sectionTabText, selectedSection === "ratios" && styles.sectionTabTextActive]}>
-            Ratios
-          </Text>
-        </TouchableOpacity>
+        {(["resultat", "bilan", "ratios"] as const).map((sec) => (
+          <TouchableOpacity
+            key={sec}
+            style={[styles.sectionTab, selectedSection === sec && styles.sectionTabActive]}
+            onPress={() => setSelectedSection(sec)}
+          >
+            <Text style={[styles.sectionTabText, selectedSection === sec && styles.sectionTabTextActive]}>
+              {sec === "resultat" ? "Résultat" : sec === "bilan" ? "Bilan" : "Ratios"}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Bilan Section */}
-        {selectedSection === "bilan" && (
-          <View style={styles.content}>
-            <View style={styles.bilanSection}>
-              <Text style={styles.bilanTitle}>Actif</Text>
-              <View style={styles.bilanCard}>
-                {bilanData.actif.map((item, index) => (
-                  <View key={index} style={styles.bilanRow}>
-                    <Text style={[styles.bilanLabel, item.bold && styles.bilanLabelBold]}>
-                      {item.label}
-                    </Text>
-                    <Text style={[styles.bilanValue, item.bold && styles.bilanValueBold]}>
-                      {item.value}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.bilanSection}>
-              <Text style={styles.bilanTitle}>Passif</Text>
-              <View style={styles.bilanCard}>
-                {bilanData.passif.map((item, index) => (
-                  <View key={index} style={styles.bilanRow}>
-                    <Text style={[styles.bilanLabel, item.bold && styles.bilanLabelBold]}>
-                      {item.label}
-                    </Text>
-                    <Text style={[styles.bilanValue, item.bold && styles.bilanValueBold]}>
-                      {item.value}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.bilanSection}>
-              <Text style={styles.bilanTitle}>Equity</Text>
-              <View style={styles.bilanCard}>
-                {bilanData.equity.map((item, index) => (
-                  <View key={index} style={styles.bilanRow}>
-                    <Text style={[styles.bilanLabel, item.bold && styles.bilanLabelBold]}>
-                      {item.label}
-                    </Text>
-                    <Text style={[styles.bilanValue, item.bold && styles.bilanValueBold]}>
-                      {item.value}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Compte de résultat Section */}
-        {selectedSection === "resultat" && (
-          <View style={styles.content}>
-            {selectedTab === "quarterly" ? (
-              quarterlyData.map((quarter, index) => (
-                <View key={index} style={styles.quarterCard}>
-                  <Text style={styles.quarterTitle}>{quarter.period}</Text>
-                  
-                  <View style={styles.financialRow}>
-                    <Text style={styles.financialLabel}>Revenus</Text>
-                    <View style={styles.financialRight}>
-                      <Text style={styles.financialValue}>{quarter.revenus}</Text>
-                      <View style={[ styles.changeBadge, parseFloat(quarter.revenusChange) >= 0 ? styles.changeBadgePositive : styles.changeBadgeNegative]}>
-                        <Ionicons 
-                          name={parseFloat(quarter.revenusChange) >= 0 ? "arrow-up" : "arrow-down"} 
-                          size={12} 
-                          color={parseFloat(quarter.revenusChange) >= 0 ? "#4CD964" : "#FF3B30"} 
-                        />
-                        <Text style={[styles.changeText, parseFloat(quarter.revenusChange) >= 0 ? styles.changeTextPositive : styles.changeTextNegative]}>
-                          {Math.abs(parseFloat(quarter.revenusChange))}%
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.financialRow}>
-                    <Text style={styles.financialLabel}>EBITDA</Text>
-                    <View style={styles.financialRight}>
-                      <Text style={styles.financialValue}>{quarter.ebitda}</Text>
-                      <View style={[styles.changeBadge, parseFloat(quarter.ebitdaChange) >= 0 ? styles.changeBadgePositive : styles.changeBadgeNegative]}>
-                        <Ionicons 
-                          name={parseFloat(quarter.ebitdaChange) >= 0 ? "arrow-up" : "arrow-down"} 
-                          size={12} 
-                          color={parseFloat(quarter.ebitdaChange) >= 0 ? "#4CD964" : "#FF3B30"} 
-                        />
-                        <Text style={[styles.changeText, parseFloat(quarter.ebitdaChange) >= 0 ? styles.changeTextPositive : styles.changeTextNegative]}>
-                          {Math.abs(parseFloat(quarter.ebitdaChange))}%
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.financialRow}>
-                    <Text style={styles.financialLabel}>Résultat net</Text>
-                    <View style={styles.financialRight}>
-                      <Text style={styles.financialValue}>{quarter.resultatNet}</Text>
-                      <View style={[styles.changeBadge, parseFloat(quarter.resultatNetChange) >= 0 ? styles.changeBadgePositive : styles.changeBadgeNegative]}>
-                        <Ionicons 
-                          name={parseFloat(quarter.resultatNetChange) >= 0 ? "arrow-up" : "arrow-down"} 
-                          size={12} 
-                          color={parseFloat(quarter.resultatNetChange) >= 0 ? "#4CD964" : "#FF3B30"} 
-                        />
-                        <Text style={[styles.changeText, parseFloat(quarter.resultatNetChange) >= 0 ? styles.changeTextPositive : styles.changeTextNegative]}>
-                          {Math.abs(parseFloat(quarter.resultatNetChange))}%
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={PURPLE} />
+          <Text style={styles.loadingText}>Chargement des données…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.centered}>
+          <Ionicons name="alert-circle-outline" size={48} color={RED} />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={load}>
+            <Text style={styles.retryText}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {selectedSection === "resultat" && (
+            <View style={styles.content}>
+              {selectedTab === "quarterly" ? (
+                <View style={styles.unavailableCard}>
+                  <Ionicons name="bar-chart-outline" size={40} color="rgba(255,255,255,0.2)" />
+                  <Text style={styles.unavailableTitle}>Données trimestrielles</Text>
+                  <Text style={styles.unavailableText}>
+                    Les résultats trimestriels ne sont pas disponibles via l'API.
+                  </Text>
                 </View>
-              ))
-            ) : (
-              <View style={styles.resultatCard}>
-                {resultatData.map((item, index) => (
-                  <View key={index} style={styles.resultatRow}>
-                    <Text style={styles.resultatLabel}>{item.label}</Text>
-                    <Text style={styles.resultatValue}>{item.value}</Text>
+              ) : (
+                <>
+                  <Text style={styles.dataSourceNote}>
+                    Données issues de l'API Finn · Exercice en cours
+                  </Text>
+                  <View style={styles.dataCard}>
+                    {annualResults.map((item, i) => (
+                      <View key={i} style={styles.dataRow}>
+                        <Text style={styles.dataLabel}>{item.label}</Text>
+                        <Text style={[styles.dataValue, !item.available && styles.dataValueUnavailable]}>
+                          {item.value}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  {netIncomeEst != null && (
+                    <Text style={styles.estimateNote}>
+                      * Résultat net estimé = EPS × actions en circulation
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
+          )}
+
+          {selectedSection === "bilan" && (
+            <View style={styles.content}>
+              <View style={styles.unavailableCard}>
+                <Ionicons name="document-text-outline" size={40} color="rgba(255,255,255,0.2)" />
+                <Text style={styles.unavailableTitle}>Bilan comptable</Text>
+                <Text style={styles.unavailableText}>
+                  Les données du bilan (actif, passif, capitaux propres) ne sont pas disponibles via l'API.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {selectedSection === "ratios" && (
+            <View style={styles.content}>
+              <Text style={styles.dataSourceNote}>
+                Données issues de l'API Finn · {stock?.symbol}
+              </Text>
+              <View style={styles.dataCard}>
+                {ratios.map((ratio, i) => (
+                  <View key={i} style={styles.dataRow}>
+                    <Text style={styles.dataLabel}>{ratio.label}</Text>
+                    <Text style={[
+                      styles.ratioValue,
+                      !ratio.available && styles.dataValueUnavailable,
+                    ]}>
+                      {ratio.value}
+                    </Text>
                   </View>
                 ))}
               </View>
-            )}
-          </View>
-        )}
-
-        {/* Ratios Section */}
-        {selectedSection === "ratios" && (
-          <View style={styles.content}>
-            <View style={styles.ratiosCard}>
-              {ratiosData.map((ratio, index) => (
-                <View key={index} style={styles.ratioRow}>
-                  <Text style={styles.ratioLabel}>{ratio.label}</Text>
-                  <Text style={styles.ratioValue}>{ratio.value}</Text>
-                </View>
-              ))}
+              <Text style={styles.estimateNote}>
+                — = données non disponibles via l'API
+              </Text>
             </View>
-          </View>
-        )}
+          )}
 
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -323,7 +243,7 @@ export default function FinancialData() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#0A0A0F",
   },
   header: {
     flexDirection: "row",
@@ -332,28 +252,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
-  backButton: {
-    padding: 8,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFF",
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "#A9A9A9",
-    marginTop: 2,
-  },
-  placeholder: {
-    width: 40,
-  },
+  backButton: { padding: 8 },
+  headerCenter: { flex: 1, alignItems: "center" },
+  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#FFF" },
+  headerSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.55)", marginTop: 2 },
+  placeholder: { width: 40 },
 
-  // Period Tabs
   periodTabs: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -363,23 +267,19 @@ const styles = StyleSheet.create({
   periodTab: {
     flex: 1,
     paddingVertical: 10,
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 8,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   periodTabActive: {
-    backgroundColor: "#8B5CF6",
+    backgroundColor: PURPLE,
+    borderColor: PURPLE,
   },
-  periodTabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#A9A9A9",
-  },
-  periodTabTextActive: {
-    color: "#FFF",
-  },
+  periodTabText: { fontSize: 14, fontWeight: "600", color: "rgba(255,255,255,0.55)" },
+  periodTabTextActive: { color: "#FFF" },
 
-  // Section Tabs
   sectionTabs: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -389,183 +289,98 @@ const styles = StyleSheet.create({
   sectionTab: {
     flex: 1,
     paddingVertical: 8,
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 8,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "transparent",
   },
   sectionTabActive: {
-    borderColor: "#8B5CF6",
-    backgroundColor: "rgba(139, 92, 246, 0.1)",
+    borderColor: PURPLE,
+    backgroundColor: "rgba(139,92,246,0.12)",
   },
-  sectionTabText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#A9A9A9",
-  },
-  sectionTabTextActive: {
-    color: "#8B5CF6",
-  },
+  sectionTabText: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.55)" },
+  sectionTabTextActive: { color: PURPLE },
 
-  scrollView: {
+  scrollView: { flex: 1 },
+  content: { paddingHorizontal: 20 },
+
+  centered: {
     flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingHorizontal: 40,
   },
-  content: {
-    paddingHorizontal: 20,
-  },
-
-  // Bilan Styles
-  bilanSection: {
-    marginBottom: 24,
-  },
-  bilanTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 12,
-  },
-  bilanCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: "#8B5CF6",
-  },
-  bilanRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  loadingText: { color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 8 },
+  errorText: { color: RED, fontSize: 14, textAlign: "center" },
+  retryButton: {
+    marginTop: 8,
+    paddingHorizontal: 24,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#2A2A2A",
+    backgroundColor: "rgba(139,92,246,0.2)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: PURPLE,
   },
-  bilanLabel: {
-    fontSize: 14,
-    color: "#A9A9A9",
-  },
-  bilanLabelBold: {
-    fontWeight: "bold",
-    color: "#FFF",
-  },
-  bilanValue: {
-    fontSize: 14,
-    color: "#FFF",
-    fontWeight: "600",
-  },
-  bilanValueBold: {
-    fontWeight: "bold",
-    color: "#8B5CF6",
-  },
+  retryText: { color: PURPLE, fontWeight: "600", fontSize: 14 },
 
-  // Quarter Card Styles
-  quarterCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+  dataSourceNote: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.3)",
+    marginBottom: 12,
+    textAlign: "center",
   },
-  quarterTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 16,
+  dataCard: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    overflow: "hidden",
   },
-  financialRow: {
+  dataRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#2A2A2A",
+    borderBottomColor: "rgba(255,255,255,0.05)",
   },
-  financialLabel: {
-    fontSize: 14,
-    color: "#A9A9A9",
+  dataLabel: { fontSize: 14, color: "rgba(255,255,255,0.7)" },
+  dataValue: { fontSize: 15, fontWeight: "600", color: "#FFF" },
+  dataValueUnavailable: { color: "rgba(255,255,255,0.25)" },
+  ratioValue: { fontSize: 15, fontWeight: "600", color: PURPLE },
+
+  estimateNote: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.3)",
+    marginTop: 10,
+    paddingHorizontal: 4,
   },
-  financialRight: {
-    flexDirection: "row",
+
+  unavailableCard: {
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
     gap: 12,
   },
-  financialValue: {
-    fontSize: 15,
+  unavailableTitle: {
+    fontSize: 16,
     fontWeight: "600",
-    color: "#FFF",
+    color: "rgba(255,255,255,0.4)",
   },
-  changeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
-  },
-  changeBadgePositive: {
-    backgroundColor: "rgba(76, 217, 100, 0.15)",
-  },
-  changeBadgeNegative: {
-    backgroundColor: "rgba(255, 59, 48, 0.15)",
-  },
-  changeText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  changeTextPositive: {
-    color: "#4CD964",
-  },
-  changeTextNegative: {
-    color: "#FF3B30",
+  unavailableText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.25)",
+    textAlign: "center",
+    lineHeight: 20,
   },
 
-  // Resultat Card
-  resultatCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: "#8B5CF6",
-  },
-  resultatRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#2A2A2A",
-  },
-  resultatLabel: {
-    fontSize: 14,
-    color: "#A9A9A9",
-  },
-  resultatValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-
-  // Ratios Styles
-  ratiosCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 12,
-    padding: 16,
-  },
-  ratioRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#2A2A2A",
-  },
-  ratioLabel: {
-    fontSize: 14,
-    color: "#A9A9A9",
-  },
-  ratioValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#8B5CF6",
-  },
-
-  bottomSpacer: {
-    height: 40,
-  },
+  bottomSpacer: { height: 40 },
 });

@@ -127,9 +127,9 @@ export function LargeCapSection({ stocks, loading = false, onPressMore }: LargeC
       {/* En-tête */}
       <View style={styles.header}>
         <Text style={styles.title}>Grandes capitalisations</Text>
-        <TouchableOpacity onPress={onPressMore}>
+        {/* <TouchableOpacity onPress={onPressMore}>
           <Text style={styles.seeMore}>voir plus →</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       {/* États */}

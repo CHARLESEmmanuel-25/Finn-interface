@@ -606,7 +606,7 @@ export default function CompanyProfile() {
               onPress={() =>
                 router.push({
                   pathname: "/financial-data",
-                  params: { symbol: companyData.symbol, name: companyData.name },
+                  params: { id: companyData._id, symbol: companyData.symbol, name: companyData.name },
                 } as any)
               }
             >
