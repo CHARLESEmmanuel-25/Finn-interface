@@ -344,6 +344,12 @@ export interface ScreenParams {
   maxPerfDay?: number;
 }
 
+export async function fetchSectorStocks(sectorId: string): Promise<Stock[]> {
+  const response = await fetch(`${API_BASE_URL}/sector/${sectorId}/stocks`);
+  if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+  return response.json();
+}
+
 export async function screenStocks(params: ScreenParams): Promise<Stock[]> {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, val]) => {

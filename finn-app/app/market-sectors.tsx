@@ -42,12 +42,19 @@ export default function MarketSectorsScreen() {
     }
   };
 
-  const topSectors = sectors.slice(0, 6);
   const allSectors = sectors;
 
-  const handleSectorPress = (sector: any) => {
-    console.log(`Secteur sélectionné: ${sector.name}`);
-    // Ici vous pouvez naviguer vers une page détaillée du secteur
+  const handleSectorPress = (sector: Sector) => {
+    const perf = perfMap[sector.name];
+    router.push({
+      pathname: "/sector-detail",
+      params: {
+        id: sector._id,
+        name: sector.name,
+        ...(perf?.avgPerf != null && { avgPerf: String(perf.avgPerf) }),
+        ...(perf?.totalMarketCap != null && { totalMarketCap: String(perf.totalMarketCap) }),
+      },
+    } as any);
   };
 
   return (
@@ -73,39 +80,19 @@ export default function MarketSectorsScreen() {
             <Text style={styles.emptyText}>Aucun secteur disponible</Text>
           </View>
         ) : (
-          <>
-            {/* Top Sectors */}
-            {topSectors.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Top Sectors</Text>
-                <View style={styles.sectorsGrid}>
-                  {topSectors.map((sector) => (
-                    <SectorCard
-                      key={sector._id}
-                      sector={sector}
-                      perf={perfMap[sector.name]}
-                      onPress={() => handleSectorPress(sector)}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* All Market Sectors */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>All Market Sectors</Text>
-              <View style={styles.sectorsGrid}>
-                {allSectors.map((sector) => (
-                  <SectorCard
-                    key={sector._id}
-                    sector={sector}
-                    perf={perfMap[sector.name]}
-                    onPress={() => handleSectorPress(sector)}
-                  />
-                ))}
-              </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tous les secteurs</Text>
+            <View style={styles.sectorsGrid}>
+              {allSectors.map((sector) => (
+                <SectorCard
+                  key={sector._id}
+                  sector={sector}
+                  perf={perfMap[sector.name]}
+                  onPress={() => handleSectorPress(sector)}
+                />
+              ))}
             </View>
-          </>
+          </View>
         )}
 
         {/* Espace pour la navigation en bas */}
@@ -145,7 +132,7 @@ const SectorCard = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#0A0A0F',
   },
   header: {
     flexDirection: 'row',
