@@ -1,43 +1,41 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import FrenchStockCard from "../french stocks/french-stock-card";
+import { Stock, formatPrice } from "@/services/api";
 
 interface Props {
-  stocks: any[];
+  stocks: Stock[];
+  loading?: boolean;
+  onPressStock?: (stock: Stock) => void;
   onPressMore: () => void;
 }
 
-export const FrenchStocksSection: React.FC<Props> = ({
-  stocks,
-  onPressMore,
-}) => {
+export const FrenchStocksSection: React.FC<Props> = ({ stocks, loading, onPressStock, onPressMore }) => {
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <Text style={styles.title}>Actions françaises</Text>
-
+        <Text style={styles.title}>Top du moment</Text>
         <TouchableOpacity onPress={onPressMore}>
           <Text style={styles.more}>voir plus</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {stocks.map((stock) => (
-          <FrenchStockCard
-            key={stock.symbol}
-            symbol={stock.symbol}
-            name={stock.name}
-            price={stock.price}
-            change={stock.change}
-          />
-        ))}
-      </ScrollView>
+      {loading ? (
+        <ActivityIndicator color="#8B5CF6" style={{ marginVertical: 20 }} />
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {stocks.map((stock) => (
+            <FrenchStockCard
+              key={stock._id}
+              symbol={stock.symbol}
+              name={stock.shortName}
+              price={formatPrice(stock.currentPrice, stock.currency)}
+              change={stock.percentVar}
+              onPress={onPressStock ? () => onPressStock(stock) : undefined}
+            />
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 };

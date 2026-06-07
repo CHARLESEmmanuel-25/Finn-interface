@@ -1,15 +1,19 @@
-import { Text, View, StyleSheet } from "react-native"
+import { Text, View, StyleSheet, TouchableOpacity } from "react-native"
 import { glass, GREEN, RED, TEXT_PRIMARY, TEXT_SECONDARY } from "@/constants/glass"
 
-export default function FrenchStockCard({ symbol, name, price, change }: any) {
+export default function FrenchStockCard({ symbol, name, price, change, onPress }: {
+    symbol: string; name: string; price: string; change: number; onPress?: () => void;
+}) {
     const isPositive = change >= 0
     const arrow = isPositive ? "↑" : "↓"
     const changeColor = isPositive ? GREEN : RED
     const changeBg = isPositive ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"
     const sign = isPositive ? "+" : ""
 
+    const Container = onPress ? TouchableOpacity : View
+
     return (
-        <View style={[glass.card, styles.card]}>
+        <Container style={[glass.card, styles.card]} onPress={onPress}>
             <View style={styles.logoBox}>
                 <Text style={styles.logoText}>{symbol}</Text>
             </View>
@@ -20,7 +24,7 @@ export default function FrenchStockCard({ symbol, name, price, change }: any) {
                     {arrow} {sign}{Math.abs(change).toFixed(2)}%
                 </Text>
             </View>
-        </View>
+        </Container>
     )
 }
 

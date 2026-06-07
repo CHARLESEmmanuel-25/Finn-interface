@@ -236,14 +236,6 @@ export default function Index() {
   //   ]);
   // };
 
-  // Actions françaises (aperçu pour l'écran d'accueil)
-  const frenchStocksPreview = [
-    { symbol: "MC",  name: "LVMH",    price: "532,80 €",         change: 0.91  },
-    { symbol: "OR",  name: "L'Oréal", price: "368,50 €",         change: 0.45  },
-    { symbol: "AIR", name: "Airbus",  price: "161,22 €",         change: -0.32 },
-    { symbol: "RMS", name: "Hermès",  price: "2 026,00 €",  change: 1.12  },
-  ]
-
   // Si pas d'utilisateur connecté, ne rien afficher (redirection en cours)
   if (!isLoggedIn || !userData) {
     return (
@@ -452,7 +444,26 @@ export default function Index() {
 
         {/* Section actions françaises (French Stocks) */}
         <FrenchStocksSection
-          stocks={frenchStocksPreview}
+          stocks={topGainers.slice(0, 4)}
+          loading={loading}
+          onPressStock={(stock: Stock) =>
+            router.push({
+              pathname: "/company-profile",
+              params: {
+                stockId: stock._id,
+                symbol: stock.symbol,
+                name: stock.shortName,
+                price: stock.currentPrice?.toString() ?? "0",
+                change: stock.percentVar?.toString() ?? "0",
+                logo: stock.logo ?? "",
+                location: stock.country ?? "",
+                sector: stock.sector ?? "",
+                website: stock.website ?? "",
+                about: stock.summary ?? "",
+                currency: stock.currency,
+              },
+            } as any)
+          }
           onPressMore={() => router.push("/french-stocks")}
         />
 
