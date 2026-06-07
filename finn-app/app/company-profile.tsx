@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LineChart } from "react-native-chart-kit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fetchStockHistory, fetchStockById, OhlcvPoint, Stock, formatMarketCap } from "@/services/api";
+import { fetchStockHistory, fetchStockById, fetchFavorites, toggleFavorite, OhlcvPoint, Stock, formatMarketCap } from "@/services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -96,6 +96,7 @@ export default function CompanyProfile() {
   const params = useLocalSearchParams();
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("1D");
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isInPortfolio, setIsInPortfolio] = useState(false);
   const [history, setHistory] = useState<OhlcvPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -198,23 +199,30 @@ export default function CompanyProfile() {
   ];
 
   useEffect(() => {
-    const checkPortfolioStatus = async () => {
+    const init = async () => {
       try {
-        const portfolioData = await AsyncStorage.getItem("portfolio");
+        const [[, portfolioData], [, uid]] = await AsyncStorage.multiGet(["portfolio", "userId"]);
         if (portfolioData) {
           const portfolio = JSON.parse(portfolioData);
-          const exists = portfolio.some(
-            (item: any) => item.symbol === companyData.symbol,
-          );
-          setIsInPortfolio(exists);
+          setIsInPortfolio(portfolio.some((item: any) => item.symbol === companyData.symbol));
+        }
+        if (uid) {
+          setUserId(uid);
+          fetchFavorites(uid)
+            .then((favs) => {
+              const isFav = favs.some(
+                (f) => f._id === companyData.stockId || f.symbol === companyData.symbol
+              );
+              setIsBookmarked(isFav);
+            })
+            .catch(() => {});
         }
       } catch (error) {
-        console.error("Erreur lors de la vérification du portfolio:", error);
+        console.error("Erreur lors de l'initialisation:", error);
       }
     };
-
-    checkPortfolioStatus();
-  }, [companyData.symbol]);
+    init();
+  }, [companyData.symbol, companyData.stockId]);
 
   useEffect(() => {
     if (!companyData.stockId) return;
@@ -237,6 +245,21 @@ export default function CompanyProfile() {
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
   }, [companyData.symbol, selectedPeriod]);
+
+  const handleToggleBookmark = async () => {
+    if (!userId || !companyData.stockId) {
+      Alert.alert("Connexion requise", "Connectez-vous pour gérer vos favoris.");
+      return;
+    }
+    const next = !isBookmarked;
+    setIsBookmarked(next); // optimiste
+    try {
+      await toggleFavorite(userId, companyData.stockId);
+    } catch {
+      setIsBookmarked(!next); // revert si erreur
+      Alert.alert("Erreur", "Impossible de mettre à jour les favoris.");
+    }
+  };
 
   const handleTogglePortfolio = async () => {
     try {
@@ -318,7 +341,7 @@ export default function CompanyProfile() {
         >
           <TouchableOpacity
             style={styles.bookmarkButton}
-            onPress={() => setIsBookmarked(!isBookmarked)}
+            onPress={handleToggleBookmark}
           >
             <Ionicons
               name={isBookmarked ? "bookmark" : "bookmark-outline"}

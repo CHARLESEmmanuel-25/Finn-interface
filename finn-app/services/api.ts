@@ -294,6 +294,21 @@ export async function fetchUser(id: string): Promise<User> {
   return response.json();
 }
 
+export async function fetchFavorites(userId: string): Promise<Stock[]> {
+  const response = await fetch(`${API_BASE_URL}/users/${userId}/favorites`);
+  if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.favorites ?? data.data ?? []);
+}
+
+export async function toggleFavorite(userId: string, stockId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/users/${userId}/favorites/${stockId}/toggle`,
+    { method: 'POST' }
+  );
+  if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+}
+
 // ─── Stock details / history ──────────────────────────────────────────────────
 
 export interface OhlcvPoint {
