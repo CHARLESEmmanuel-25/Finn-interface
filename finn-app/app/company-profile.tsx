@@ -743,31 +743,56 @@ export default function CompanyProfile() {
           )}
         </View>
 
-        {/* Recent & Upcoming Events */}
+        {/* Événements à venir */}
         <View style={styles.section}>
           <View style={styles.eventsHeader}>
-            <Text style={styles.sectionTitle}>Recent & Upcoming Events</Text>
+            <Text style={styles.sectionTitle}>Événements à venir</Text>
             <TouchableOpacity>
-              <Text style={styles.viewAll}>View all</Text>
+              <Text style={styles.viewAll}>Voir tout</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.eventsScroll}
-          >
-            <EventCard
-              title="Q3 Earnings Call"
-              date="Aug 15, 2025"
-              image="https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=300&h=200&fit=crop"
+          <View style={styles.eventsGrid}>
+            <CompanyEventCard
+              title={`Résultats Q3 ${companyData.symbol}`}
+              date="15 Oct 2025"
             />
-            <EventCard
-              title="Annual Meeting"
-              date="Nov 20, 2025"
-              image="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=300&h=200&fit=crop"
+            <CompanyEventCard
+              title="Assemblée Générale"
+              date="20 Nov 2025"
             />
-          </ScrollView>
+          </View>
+        </View>
+
+        {/* Actualités */}
+        <View style={styles.section}>
+          <View style={styles.eventsHeader}>
+            <Text style={styles.sectionTitle}>Actualités</Text>
+            <TouchableOpacity>
+              <Text style={styles.viewAll}>Voir tout</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.newsList}>
+            <CompanyNewsItem
+              title={`${companyData.name} bat les attentes du marché au T2`}
+              source={companyData.symbol}
+              time="2h"
+              image="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=120&h=80&fit=crop"
+            />
+            <CompanyNewsItem
+              title="Hausse des marchés européens après les chiffres de l'inflation"
+              source="Bloomberg"
+              time="4h"
+              image="https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=120&h=80&fit=crop"
+            />
+            <CompanyNewsItem
+              title={`Analyse sectorielle : ${companyData.sector || "Tech"} en bonne forme`}
+              source="Reuters"
+              time="6h"
+              image="https://images.unsplash.com/photo-1543286386-713bdd548da4?w=120&h=80&fit=crop"
+            />
+          </View>
         </View>
 
         {/* Set Price Alerts */}
@@ -795,7 +820,6 @@ export default function CompanyProfile() {
   );
 }
 
-// Composant MetricCell (grille sous le graphique)
 const MetricCell = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.metricCell}>
     <Text style={styles.metricLabel}>{label}</Text>
@@ -803,22 +827,37 @@ const MetricCell = ({ label, value }: { label: string; value: string }) => (
   </View>
 );
 
-// Composant EventCard
-const EventCard = ({
+const CompanyEventCard = ({ title, date }: { title: string; date: string }) => (
+  <View style={styles.companyEventCard}>
+    <View style={styles.companyEventIconBox}>
+      <Ionicons name="calendar-clear-outline" size={14} color="#8B5CF6" />
+    </View>
+    <Text style={styles.companyEventTitle} numberOfLines={2}>{title}</Text>
+    <Text style={styles.companyEventDate}>{date}</Text>
+  </View>
+);
+
+const CompanyNewsItem = ({
   title,
-  date,
+  source,
+  time,
   image,
 }: {
   title: string;
-  date: string;
+  source: string;
+  time: string;
   image: string;
 }) => (
-  <View style={styles.eventCard}>
-    <Image source={{ uri: image }} style={styles.eventImage} />
-    <View style={styles.eventOverlay}>
-      <Text style={styles.eventTitle}>{title}</Text>
-      <Text style={styles.eventDate}>{date}</Text>
+  <View style={styles.newsItem}>
+    <View style={styles.newsContent}>
+      <Text style={styles.newsTitle} numberOfLines={2}>{title}</Text>
+      <View style={styles.newsMeta}>
+        <Text style={styles.newsSource}>{source}</Text>
+        <Text style={styles.newsDot}>·</Text>
+        <Text style={styles.newsTime}>{time}</Text>
+      </View>
     </View>
+    <Image source={{ uri: image }} style={styles.newsThumbnail} />
   </View>
 );
 
@@ -1323,39 +1362,85 @@ const styles = StyleSheet.create({
     color: "#8B5CF6",
     fontWeight: "600",
   },
-  eventsScroll: {
-    marginLeft: -20,
-    paddingLeft: 20,
+  eventsGrid: {
+    flexDirection: "row",
+    gap: 12,
   },
-  eventCard: {
-    width: 240,
-    height: 160,
-    borderRadius: 16,
-    marginRight: 16,
-    overflow: "hidden",
-    position: "relative",
+  companyEventCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 20,
+    padding: 14,
+    alignItems: "flex-start",
   },
-  eventImage: {
-    width: "100%",
-    height: "100%",
+  companyEventIconBox: {
+    backgroundColor: "rgba(139,92,246,0.2)",
+    borderRadius: 8,
+    padding: 6,
+    marginBottom: 10,
   },
-  eventOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    padding: 16,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
+  companyEventTitle: {
+    fontSize: 14,
+    fontWeight: "700",
     color: "#FFF",
-    marginBottom: 4,
+    marginBottom: 6,
+    lineHeight: 20,
   },
-  eventDate: {
+  companyEventDate: {
     fontSize: 12,
-    color: "#A9A9A9",
+    color: "rgba(255,255,255,0.55)",
+  },
+
+  // News
+  newsList: {
+    gap: 8,
+  },
+  newsItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  newsContent: {
+    flex: 1,
+  },
+  newsTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFF",
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  newsMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  newsSource: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#8B5CF6",
+  },
+  newsDot: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.55)",
+  },
+  newsTime: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.55)",
+  },
+  newsThumbnail: {
+    width: 72,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
 
   // Alert Card

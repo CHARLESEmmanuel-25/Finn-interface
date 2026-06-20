@@ -56,6 +56,11 @@ const SORT_LABELS: Record<SortKey, string> = {
   name: "Nom",
 };
 
+const ALLOC_COLORS = [
+  "#8B5CF6", "#3B82F6", "#06B6D4", "#F59E0B",
+  "#10B981", "#EF4444", "#EC4899", "#F97316",
+];
+
 export default function Portfolio() {
   const [portfolioCompanies, setPortfolioCompanies] = useState<
     PortfolioCompany[]
@@ -230,6 +235,24 @@ export default function Portfolio() {
     totalValue > 0 ? (totalDailyChange / totalValue) * 100 : 0;
   const portfolioPositive = overallPercent >= 0;
 
+  const totalInvested = enrichedItems.reduce((s, i) => {
+    const buyPrice =
+      parseFloat(i.price.replace(/[$,€]/g, "").replace(",", ".")) ||
+      i.currentPrice;
+    return s + buyPrice * i.quantity;
+  }, 0);
+  const totalPnL = totalValue - totalInvested;
+
+  const allocationData =
+    totalValue > 0
+      ? enrichedItems
+          .map((item) => ({
+            symbol: item.symbol,
+            percent: (item.currentPrice * item.quantity / totalValue) * 100,
+          }))
+          .sort((a, b) => b.percent - a.percent)
+      : [];
+
   const sortedItems = [...enrichedItems].sort((a, b) => {
     let cmp = 0;
     if (sortBy === "dailyPercent") cmp = a.percentVar - b.percentVar;
@@ -259,7 +282,9 @@ export default function Portfolio() {
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Portfolio</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity style={s.historyBtn}>
+          <Ionicons name="time-outline" size={22} color="#A9A9A9" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -296,20 +321,103 @@ export default function Portfolio() {
             <View style={s.totalCard}>
               <Text style={s.totalLabel}>Valeur totale</Text>
               <Text style={s.totalValue}>€{totalValue.toFixed(2)}</Text>
-              <Text
-                style={[
-                  s.totalPerf,
-                  { color: portfolioPositive ? "#4CD964" : "#FF3B30" },
-                ]}
-              >
-                {portfolioPositive ? "▲" : "▼"}{" "}
-                {Math.abs(overallPercent).toFixed(2)}%{"  "}
-                <Text style={s.totalPerfSub}>
-                  ({portfolioPositive ? "+" : ""}
-                  {totalDailyChange.toFixed(2)} aujourd&apos;hui)
+
+              {/* Perf badge + daily change */}
+              <View style={s.perfRow}>
+                <View
+                  style={[
+                    s.perfBadge,
+                    {
+                      backgroundColor: portfolioPositive
+                        ? "#1a3a1a"
+                        : "#3a1212",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      s.perfBadgeText,
+                      { color: portfolioPositive ? "#4CD964" : "#FF3B30" },
+                    ]}
+                  >
+                    {portfolioPositive ? "▲" : "▼"}{" "}
+                    {Math.abs(overallPercent).toFixed(2)}%
+                  </Text>
+                </View>
+                <Text style={s.perfDailyText}>
+                  {totalDailyChange >= 0 ? "+" : ""}€
+                  {totalDailyChange.toFixed(2)} aujourd&apos;hui
                 </Text>
-              </Text>
+              </View>
+
+              {/* Stats row */}
+              <View style={s.statsRow}>
+                <View style={s.statItem}>
+                  <Text style={s.statLabel}>INVESTI</Text>
+                  <Text style={s.statValue}>€{totalInvested.toFixed(2)}</Text>
+                </View>
+                <View style={s.statDivider} />
+                <View style={s.statItem}>
+                  <Text style={s.statLabel}>P&L TOTAL</Text>
+                  <Text
+                    style={[
+                      s.statValue,
+                      { color: totalPnL >= 0 ? "#4CD964" : "#FF3B30" },
+                    ]}
+                  >
+                    {totalPnL >= 0 ? "+" : ""}€{totalPnL.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={s.statDivider} />
+                <View style={s.statItem}>
+                  <Text style={s.statLabel}>POSITIONS</Text>
+                  <Text style={s.statValue}>{enrichedItems.length}</Text>
+                </View>
+              </View>
             </View>
+
+            {/* Répartition */}
+            {allocationData.length > 0 && (
+              <View style={s.allocCard}>
+                <Text style={s.allocTitle}>Répartition</Text>
+                <View style={s.allocBar}>
+                  {allocationData.map((item, idx) => (
+                    <View
+                      key={item.symbol}
+                      style={[
+                        s.allocSegment,
+                        {
+                          flex: item.percent / 100,
+                          backgroundColor:
+                            ALLOC_COLORS[idx % ALLOC_COLORS.length],
+                        },
+                        idx === 0 && s.allocSegmentFirst,
+                        idx === allocationData.length - 1 &&
+                          s.allocSegmentLast,
+                      ]}
+                    />
+                  ))}
+                </View>
+                <View style={s.allocLegend}>
+                  {allocationData.map((item, idx) => (
+                    <View key={item.symbol} style={s.allocLegendItem}>
+                      <View
+                        style={[
+                          s.allocDot,
+                          {
+                            backgroundColor:
+                              ALLOC_COLORS[idx % ALLOC_COLORS.length],
+                          },
+                        ]}
+                      />
+                      <Text style={s.allocLegendText}>
+                        {item.symbol} {item.percent.toFixed(0)}%
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Count + sort row */}
             <View style={s.metaRow}>
@@ -552,13 +660,14 @@ const s = StyleSheet.create({
   },
   backBtn: { padding: 6 },
   headerTitle: { fontSize: 20, fontWeight: "bold", color: "#FFF" },
+  historyBtn: { padding: 6, width: 40, alignItems: "flex-end" },
 
   // Total card
   totalCard: {
     backgroundColor: "#111",
     marginHorizontal: 16,
     marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 12,
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
@@ -569,10 +678,63 @@ const s = StyleSheet.create({
     fontSize: 32,
     fontWeight: "bold",
     color: "#FFF",
-    marginBottom: 6,
+    marginBottom: 10,
   },
-  totalPerf: { fontSize: 15, fontWeight: "600" },
-  totalPerfSub: { fontSize: 13, color: "#A9A9A9", fontWeight: "400" },
+
+  // Perf badge row
+  perfRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 18,
+  },
+  perfBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  perfBadgeText: { fontSize: 14, fontWeight: "700" },
+  perfDailyText: { fontSize: 13, color: "#777" },
+
+  // Stats row
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#1E1E2A",
+  },
+  statItem: { flex: 1, alignItems: "center" },
+  statLabel: { fontSize: 10, color: "#555", fontWeight: "600", marginBottom: 4, letterSpacing: 0.5 },
+  statValue: { fontSize: 15, fontWeight: "700", color: "#FFF" },
+  statDivider: { width: 1, height: 32, backgroundColor: "#1E1E2A" },
+
+  // Répartition card
+  allocCard: {
+    backgroundColor: "#111",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#1E1E2A",
+  },
+  allocTitle: { fontSize: 15, fontWeight: "600", color: "#FFF", marginBottom: 12 },
+  allocBar: {
+    flexDirection: "row",
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 12,
+    gap: 2,
+  },
+  allocSegment: { height: "100%" },
+  allocSegmentFirst: { borderTopLeftRadius: 4, borderBottomLeftRadius: 4 },
+  allocSegmentLast: { borderTopRightRadius: 4, borderBottomRightRadius: 4 },
+  allocLegend: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  allocLegendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  allocDot: { width: 8, height: 8, borderRadius: 4 },
+  allocLegendText: { fontSize: 12, color: "#A9A9A9" },
 
   // Meta row
   metaRow: {
