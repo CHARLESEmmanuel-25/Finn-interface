@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,8 +22,39 @@ import {
   toggleLike,
   addComment,
   type ForumPost,
-  type ForumComment,
+  type ForumCategory,
 } from "../services/forum";
+
+const PURPLE = "#8B5CF6";
+const GREEN  = "#22C55E";
+const RED    = "#EF4444";
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function getInitials(name: string) {
+  const words = name.trim().split(" ");
+  if (words.length >= 2) return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  return name.substring(0, 2).toUpperCase();
+}
+
+function avatarBg(name: string): string {
+  const palette = ["#1B4F72", "#1A5276", "#4A235A", "#145A32", "#7B241C", "#1F618D"];
+  const idx = name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % palette.length;
+  return palette[idx];
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} à ${d
+    .getHours()
+    .toString()
+    .padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+}
 
 function formatTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -33,20 +65,66 @@ function formatTimeAgo(dateStr: string): string {
   if (mins < 60) return `Il y a ${mins} min`;
   if (hours < 24) return `Il y a ${hours}h`;
   if (days < 7) return `Il y a ${days}j`;
-  return new Date(dateStr).toLocaleDateString("fr-FR", {
-    day: "numeric",
-    month: "short",
-  });
+  return formatDate(dateStr);
 }
 
+// ── Category config ───────────────────────────────────────────────────────────
+
+const CATEGORIES: {
+  key: ForumCategory;
+  label: string;
+  sub: string;
+  count: number;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  iconBg: string;
+  iconColor: string;
+}[] = [
+  { key: "analyses",   label: "Analyses",            sub: "études et avis sur des actions", count: 126, icon: "bar-chart",              iconBg: "rgba(139,92,246,0.2)",  iconColor: PURPLE },
+  { key: "debutants",  label: "Questions débutants",  sub: "pour bien démarrer en bourse",  count: 94,  icon: "time-outline",            iconBg: "rgba(6,182,212,0.2)",   iconColor: "#06B6D4" },
+  { key: "actualites", label: "Actualités marché",    sub: "macro, taux, événements",       count: 76,  icon: "warning-outline",         iconBg: "rgba(239,68,68,0.2)",   iconColor: RED },
+  { key: "general",    label: "Discussion générale",  sub: "tout le reste",                 count: 52,  icon: "chatbubble-ellipses-outline", iconBg: "rgba(34,197,94,0.2)", iconColor: GREEN },
+];
+
+const CATEGORY_TAG: Record<ForumCategory, { label: string; color: string }> = {
+  analyses:   { label: "Analyse",   color: PURPLE },
+  debutants:  { label: "Débutants", color: "#F59E0B" },
+  actualites: { label: "Actualité", color: GREEN },
+  general:    { label: "Général",   color: "#06B6D4" },
+};
+
+// ── Initials avatar ───────────────────────────────────────────────────────────
+
+function Avatar({ name, size = 40 }: { name: string; size?: number }) {
+  return (
+    <View
+      style={[
+        avatarStyles.circle,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: avatarBg(name) },
+      ]}
+    >
+      <Text style={[avatarStyles.text, { fontSize: size * 0.35 }]}>{getInitials(name)}</Text>
+    </View>
+  );
+}
+
+const avatarStyles = StyleSheet.create({
+  circle: { justifyContent: "center", alignItems: "center" },
+  text: { color: "#FFF", fontWeight: "700" },
+});
+
+// ── Main screen ───────────────────────────────────────────────────────────────
+
 export default function ForumScreen() {
-  const [posts, setPosts] = useState<ForumPost[]>([]);
-  const [userData, setUserData] = useState<{ fullName: string; email: string } | null>(null);
+  const [posts, setPosts]           = useState<ForumPost[]>([]);
+  const [userData, setUserData]     = useState<{ fullName: string; email: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch]         = useState("");
+  const [selectedPost, setSelectedPost] = useState<ForumPost | null>(null);
+  const [replyText, setReplyText]   = useState("");
+  const [posting, setPosting]       = useState(false);
+  const [newPostTitle, setNewPostTitle]   = useState("");
   const [newPostContent, setNewPostContent] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
-  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  const [showNewPost, setShowNewPost] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -56,14 +134,12 @@ export default function ForumScreen() {
       ]);
       setPosts(forumPosts);
       if (userInfo) setUserData(JSON.parse(userInfo));
-    } catch (error) {
-      console.error("Erreur chargement forum:", error);
+    } catch {
+      // silently continue
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -79,12 +155,16 @@ export default function ForumScreen() {
       const post = await createForumPost({
         userId: userData.email,
         userName: userData.fullName,
+        title: newPostTitle.trim() || undefined,
         content,
+        category: "general",
       });
       setPosts((prev) => [post, ...prev]);
+      setNewPostTitle("");
       setNewPostContent("");
-    } catch (error) {
-      console.error("Erreur création post:", error);
+      setShowNewPost(false);
+    } catch {
+      // silently continue
     } finally {
       setPosting(false);
     }
@@ -94,489 +174,593 @@ export default function ForumScreen() {
     if (!userData) return;
     const updated = await toggleLike(postId, userData.email);
     if (!updated) return;
-    setPosts((prev) =>
-      prev.map((p) => (p.id === postId ? { ...p, likes: updated.likes } : p))
-    );
+    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, likes: updated.likes } : p)));
+    if (selectedPost?.id === postId) setSelectedPost((p) => p ? { ...p, likes: updated.likes } : p);
   };
 
-  const handleAddComment = async (postId: string) => {
-    const content = (commentInputs[postId] || "").trim();
-    if (!content || !userData) return;
-    const comment = await addComment(postId, {
+  const handleReply = async () => {
+    if (!replyText.trim() || !userData || !selectedPost) return;
+    const comment = await addComment(selectedPost.id, {
       userId: userData.email,
       userName: userData.fullName,
-      content,
+      content: replyText,
     });
     if (!comment) return;
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? { ...p, comments: [...p.comments, comment] }
-          : p
-      )
-    );
-    setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
-    setExpandedComments((prev) => ({ ...prev, [postId]: true }));
+    const updated = { ...selectedPost, comments: [...selectedPost.comments, comment] };
+    setSelectedPost(updated);
+    setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setReplyText("");
   };
 
-  const toggleComments = (postId: string) => {
-    setExpandedComments((prev) => ({ ...prev, [postId]: !prev[postId] }));
-  };
+  const popularPosts = posts
+    .filter((p) => !search || (p.title ?? p.content).toLowerCase().includes(search.toLowerCase()))
+    .slice(0, 5);
 
-  const getInitials = (name: string) => {
-    const words = name.split(" ");
-    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-    return name.substring(0, 2).toUpperCase();
-  };
+  // ── Detail view ─────────────────────────────────────────────────────────────
+  if (selectedPost) {
+    const cat = selectedPost.category ? CATEGORY_TAG[selectedPost.category] : null;
+    const isLiked = userData ? selectedPost.likes.includes(userData.email) : false;
+    const displayName = userData?.fullName ?? "Utilisateur";
 
-  return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <StatusBar barStyle="light-content" />
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Forum</Text>
-        <View style={styles.headerRight} />
-      </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setSelectedPost(null)} style={styles.headerBackBtn}>
+            <Ionicons name="chevron-back" size={18} color={PURPLE} />
+            <Text style={styles.headerBackText}>Sujets</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Discussion</Text>
+          <TouchableOpacity style={styles.headerIconBtn}>
+            <Ionicons name="ellipsis-vertical" size={20} color="#FFF" />
+          </TouchableOpacity>
+        </View>
 
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" />
-          }
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={0}
         >
-          {/* Create post */}
-          {userData && (
-            <View style={styles.createPost}>
-              <View style={styles.userAvatar}>
-                <Text style={styles.userAvatarText}>{getInitials(userData.fullName)}</Text>
-              </View>
-              <View style={styles.createPostInputRow}>
-                <TextInput
-                  style={styles.createPostInput}
-                  placeholder="Partagez une idée, une analyse..."
-                  placeholderTextColor="#666"
-                  value={newPostContent}
-                  onChangeText={setNewPostContent}
-                  multiline
-                  maxLength={500}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.postButton,
-                    (!newPostContent.trim() || posting) && styles.postButtonDisabled,
-                  ]}
-                  onPress={handleCreatePost}
-                  disabled={!newPostContent.trim() || posting}
-                >
-                  <Ionicons name="send" size={20} color="#FFF" />
-                  <Text style={styles.postButtonText}>Publier</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Post card */}
+            <View style={styles.detailCard}>
+              {cat && (
+                <View style={[styles.catTag, { backgroundColor: cat.color + "22", borderColor: cat.color + "44" }]}>
+                  <Text style={[styles.catTagText, { color: cat.color }]}>{cat.label}</Text>
+                </View>
+              )}
+              <Text style={styles.detailTitle}>
+                {selectedPost.title ?? selectedPost.content}
+              </Text>
 
-          {/* Feed */}
-          <View style={styles.feed}>
-            {posts.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="chatbubbles-outline" size={56} color="#8B5CF6" />
-                <Text style={styles.emptyTitle}>Aucune publication</Text>
-                <Text style={styles.emptyDesc}>
-                  Soyez le premier à partager une idée ou une analyse avec la communauté !
+              {selectedPost.stockSymbol && (
+                <View style={styles.stockChip}>
+                  <View style={styles.stockChipLeft}>
+                    <Text style={styles.stockChipSymbol}>{selectedPost.stockSymbol}</Text>
+                    {selectedPost.stockName && (
+                      <Text style={styles.stockChipName}>{selectedPost.stockName}</Text>
+                    )}
+                  </View>
+                  {selectedPost.stockPrice != null && (
+                    <Text style={styles.stockChipPrice}>
+                      {selectedPost.stockPrice.toFixed(2)} $
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.detailMeta}>
+                <View style={styles.detailMetaItem}>
+                  <Ionicons name="person-outline" size={13} color="rgba(255,255,255,0.4)" />
+                  <Text style={styles.detailMetaText}>{selectedPost.userName.split(" ")[0]} {selectedPost.userName.split(" ")[1]?.[0]}.</Text>
+                </View>
+                <View style={styles.detailMetaItem}>
+                  <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.4)" />
+                  <Text style={styles.detailMetaText}>{formatDate(selectedPost.createdAt)}</Text>
+                </View>
+                <View style={styles.detailMetaItem}>
+                  <Ionicons name="chatbubble-outline" size={13} color="rgba(255,255,255,0.4)" />
+                  <Text style={styles.detailMetaText}>{selectedPost.comments.length} réponses</Text>
+                </View>
+              </View>
+
+              <View style={styles.disclaimer}>
+                <Ionicons name="information-circle-outline" size={13} color="rgba(255,255,255,0.3)" />
+                <Text style={styles.disclaimerText}>
+                  Les avis partagés sont personnels, pas des conseils financiers
                 </Text>
               </View>
-            ) : (
-              posts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  currentUserId={userData?.email}
-                  isLiked={userData ? post.likes.includes(userData.email) : false}
-                  onLike={() => handleLike(post.id)}
-                  commentInput={commentInputs[post.id] ?? ""}
-                  onCommentInputChange={(v) =>
-                    setCommentInputs((prev) => ({ ...prev, [post.id]: v }))
-                  }
-                  onAddComment={() => handleAddComment(post.id)}
-                  isExpanded={!!expandedComments[post.id]}
-                  onToggleComments={() => toggleComments(post.id)}
-                  getInitials={getInitials}
-                />
-              ))
-            )}
+            </View>
+
+            {/* Comments */}
+            <View style={styles.commentsList}>
+              {selectedPost.comments.map((c) => (
+                <View key={c.id} style={styles.commentCard}>
+                  <View style={styles.commentHeader}>
+                    <Avatar name={c.userName} size={38} />
+                    <View style={styles.commentHeaderInfo}>
+                      <Text style={styles.commentUserName}>{c.userName}</Text>
+                      <Text style={styles.commentTime}>{formatTime(c.createdAt)}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.commentBody}>{c.content}</Text>
+                  <View style={styles.commentActions}>
+                    <TouchableOpacity style={styles.commentActionBtn}>
+                      <Ionicons name="heart-outline" size={16} color="rgba(255,255,255,0.45)" />
+                      <Text style={styles.commentActionText}>{c.likes ?? 0}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.commentActionBtn}>
+                      <Ionicons name="return-down-forward-outline" size={16} color="rgba(255,255,255,0.45)" />
+                      <Text style={styles.commentActionText}>Répondre</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Reply input */}
+          <View style={styles.replyBar}>
+            <Avatar name={displayName} size={34} />
+            <TextInput
+              style={styles.replyInput}
+              placeholder="Ajouter une réponse..."
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={replyText}
+              onChangeText={setReplyText}
+              returnKeyType="send"
+              onSubmitEditing={handleReply}
+            />
+            <TouchableOpacity
+              style={[styles.replySend, !replyText.trim() && { opacity: 0.5 }]}
+              onPress={handleReply}
+              disabled={!replyText.trim()}
+            >
+              <Ionicons name="send" size={16} color="#FFF" />
+            </TouchableOpacity>
           </View>
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  // ── List view ────────────────────────────────────────────────────────────────
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBackBtn}>
+          <Ionicons name="chevron-back" size={18} color={PURPLE} />
+          <Text style={styles.headerBackText}>Retour</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Forum</Text>
+        <TouchableOpacity style={styles.headerIconBtn}>
+          <Ionicons name="notifications-outline" size={20} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PURPLE} />}
+      >
+        {/* Search */}
+        <View style={styles.searchWrap}>
+          <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.3)" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher un sujet, une action..."
+            placeholderTextColor="rgba(255,255,255,0.3)"
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+
+        {/* Categories */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Catégories</Text>
+        </View>
+        <View style={styles.categoriesList}>
+          {CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat.key}
+              style={styles.categoryRow}
+              activeOpacity={0.7}
+              onPress={() => {
+                /* filter by category — future feature */
+              }}
+            >
+              <View style={[styles.categoryIconWrap, { backgroundColor: cat.iconBg }]}>
+                <Ionicons name={cat.icon} size={20} color={cat.iconColor} />
+              </View>
+              <View style={styles.categoryInfo}>
+                <Text style={styles.categoryLabel}>{cat.label}</Text>
+                <Text style={styles.categorySub}>{cat.count} sujets · {cat.sub}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.2)" />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Popular posts */}
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+          <Text style={styles.sectionTitle}>Sujets populaires</Text>
+          <TouchableOpacity>
+            <Text style={styles.seeAll}>voir tout</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.postsList}>
+          {popularPosts.map((post) => {
+            const cat = post.category ? CATEGORY_TAG[post.category] : null;
+            const firstName = post.userName.split(" ")[0];
+            const lastInitial = post.userName.split(" ")[1]?.[0] ?? "";
+            return (
+              <TouchableOpacity
+                key={post.id}
+                style={styles.postRow}
+                onPress={() => setSelectedPost(post)}
+                activeOpacity={0.75}
+              >
+                {/* Tags row */}
+                <View style={styles.postTagRow}>
+                  {cat && (
+                    <View style={[styles.catTag, { backgroundColor: cat.color + "22", borderColor: cat.color + "44" }]}>
+                      <Text style={[styles.catTagText, { color: cat.color }]}>{cat.label}</Text>
+                    </View>
+                  )}
+                  {post.pinned && (
+                    <View style={styles.pinnedBadge}>
+                      <Ionicons name="star" size={10} color="#F59E0B" />
+                      <Text style={styles.pinnedText}>Épinglé</Text>
+                    </View>
+                  )}
+                </View>
+                {/* Title */}
+                <Text style={styles.postRowTitle} numberOfLines={2}>
+                  {post.title ?? post.content}
+                </Text>
+                {/* Footer */}
+                <View style={styles.postRowFooter}>
+                  <View style={styles.postRowStats}>
+                    <Ionicons name="chatbubble-outline" size={13} color="rgba(255,255,255,0.4)" />
+                    <Text style={styles.postRowStatText}>{post.comments.length}</Text>
+                    <Ionicons name="heart-outline" size={13} color="rgba(255,255,255,0.4)" style={{ marginLeft: 8 }} />
+                    <Text style={styles.postRowStatText}>{post.likes.length}</Text>
+                  </View>
+                  <Text style={styles.postRowMeta}>
+                    {firstName} {lastInitial}. · {formatDate(post.createdAt)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* New post button */}
+        {userData && (
+          <TouchableOpacity
+            style={styles.newPostFab}
+            onPress={() => setShowNewPost((v) => !v)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name={showNewPost ? "close" : "add"} size={20} color="#FFF" />
+            <Text style={styles.newPostFabText}>{showNewPost ? "Annuler" : "Nouveau sujet"}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Inline new post form */}
+        {showNewPost && userData && (
+          <View style={styles.newPostForm}>
+            <TextInput
+              style={styles.newPostTitleInput}
+              placeholder="Titre du sujet"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={newPostTitle}
+              onChangeText={setNewPostTitle}
+            />
+            <TextInput
+              style={styles.newPostBodyInput}
+              placeholder="Partagez une idée, une analyse..."
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={newPostContent}
+              onChangeText={setNewPostContent}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
+              style={[styles.publishBtn, (!newPostContent.trim() || posting) && { opacity: 0.5 }]}
+              onPress={handleCreatePost}
+              disabled={!newPostContent.trim() || posting}
+            >
+              <Ionicons name="send" size={16} color="#FFF" />
+              <Text style={styles.publishBtnText}>Publier</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-function PostCard({
-  post,
-  currentUserId,
-  isLiked,
-  onLike,
-  commentInput,
-  onCommentInputChange,
-  onAddComment,
-  isExpanded,
-  onToggleComments,
-  getInitials,
-}: {
-  post: ForumPost;
-  currentUserId?: string;
-  isLiked: boolean;
-  onLike: () => void;
-  commentInput: string;
-  onCommentInputChange: (v: string) => void;
-  onAddComment: () => void;
-  isExpanded: boolean;
-  onToggleComments: () => void;
-  getInitials: (n: string) => string;
-}) {
-  return (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <View style={styles.postAvatar}>
-          <Text style={styles.postAvatarText}>{getInitials(post.userName)}</Text>
-        </View>
-        <View style={styles.postHeaderInfo}>
-          <Text style={styles.postUserName}>{post.userName}</Text>
-          <Text style={styles.postTime}>{formatTimeAgo(post.createdAt)}</Text>
-        </View>
-      </View>
-      <Text style={styles.postContent}>{post.content}</Text>
-      {post.stockSymbol && (
-        <View style={styles.stockBadge}>
-          <Text style={styles.stockBadgeText}>{post.stockSymbol}</Text>
-          {post.stockName && (
-            <Text style={styles.stockBadgeName} numberOfLines={1}>
-              {post.stockName}
-            </Text>
-          )}
-        </View>
-      )}
-      <View style={styles.postActions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onLike}>
-          <Ionicons
-            name={isLiked ? "heart" : "heart-outline"}
-            size={22}
-            color={isLiked ? "#FF3B30" : "#A9A9A9"}
-          />
-          <Text style={[styles.actionText, isLiked && styles.actionTextLiked]}>
-            {post.likes.length}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onToggleComments}>
-          <Ionicons
-            name="chatbubble-outline"
-            size={20}
-            color="#A9A9A9"
-          />
-          <Text style={styles.actionText}>{post.comments.length}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {isExpanded && (
-        <View style={styles.commentsSection}>
-          <TouchableOpacity style={styles.collapseBtn} onPress={onToggleComments}>
-            <Text style={styles.collapseBtnText}>Masquer les commentaires</Text>
-            <Ionicons name="chevron-up" size={16} color="#8B5CF6" />
-          </TouchableOpacity>
-          {post.comments.map((c) => (
-            <View key={c.id} style={styles.comment}>
-              <Text style={styles.commentUser}>{c.userName}</Text>
-              <Text style={styles.commentContent}>{c.content}</Text>
-            </View>
-          ))}
-          {currentUserId && (
-            <View style={styles.commentInputRow}>
-              <TextInput
-                style={styles.commentInput}
-                placeholder="Ajouter un commentaire..."
-                placeholderTextColor="#666"
-                value={commentInput}
-                onChangeText={onCommentInputChange}
-                onSubmitEditing={onAddComment}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.commentSend,
-                  !commentInput.trim() && styles.commentSendDisabled,
-                ]}
-                onPress={onAddComment}
-                disabled={!commentInput.trim()}
-              >
-                <Ionicons name="send" size={18} color={commentInput.trim() ? "#8B5CF6" : "#666"} />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      )}
-      {!isExpanded && post.comments.length > 0 && (
-        <TouchableOpacity style={styles.showComments} onPress={onToggleComments}>
-          <Text style={styles.showCommentsText}>
-            Voir les {post.comments.length} commentaire{post.comments.length > 1 ? "s" : ""}
-          </Text>
-          <Ionicons name="chevron-down" size={16} color="#8B5CF6" />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  keyboardView: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: "#0A0A0F" },
+
+  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1A1A1A",
-  },
-  backButton: { padding: 8 },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#FFF",
-  },
-  headerRight: { width: 40 },
-  scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
-  createPost: {
-    flexDirection: "row",
-    padding: 16,
-    backgroundColor: "#1A1A1A",
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 8,
-    borderRadius: 16,
-    gap: 12,
-  },
-  userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#8B5CF6",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userAvatarText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  createPostInputRow: {
-    flex: 1,
-    gap: 10,
-  },
-  createPostInput: {
-    backgroundColor: "#2A2A2A",
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    color: "#FFF",
-    fontSize: 15,
-    maxHeight: 100,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
-  postButton: {
+  headerBackBtn: { flexDirection: "row", alignItems: "center", gap: 2, minWidth: 70 },
+  headerBackText: { fontSize: 15, color: PURPLE, fontWeight: "500" },
+  headerTitle: { fontSize: 17, fontWeight: "700", color: "#FFF" },
+  headerIconBtn: { padding: 4, minWidth: 32, alignItems: "flex-end" },
+
+  // Search
+  searchWrap: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#8B5CF6",
-    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 4,
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 12,
-  },
-  postButtonDisabled: {
-    opacity: 0.5,
-  },
-  postButtonText: {
-    color: "#FFF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  feed: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    gap: 12,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginTop: 16,
-  },
-  emptyDesc: {
-    fontSize: 14,
-    color: "#A9A9A9",
-    marginTop: 8,
-    textAlign: "center",
-    paddingHorizontal: 40,
-  },
-  postCard: {
-    backgroundColor: "#1A1A1A",
-    borderRadius: 16,
-    padding: 16,
     borderWidth: 1,
-    borderColor: "#2A2A2A",
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
   },
-  postHeader: {
+  searchIcon: {},
+  searchInput: { flex: 1, fontSize: 14, color: "#FFF" },
+
+  // Section header
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 10,
   },
-  postAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#8B5CF6",
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#FFF" },
+  seeAll: { fontSize: 13, color: PURPLE, fontWeight: "500" },
+
+  // Categories
+  categoriesList: {
+    marginHorizontal: 16,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    overflow: "hidden",
+  },
+  categoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+    gap: 14,
+  },
+  categoryIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
-  postAvatarText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "bold",
+  categoryInfo: { flex: 1 },
+  categoryLabel: { fontSize: 15, fontWeight: "600", color: "#FFF", marginBottom: 2 },
+  categorySub: { fontSize: 12, color: "rgba(255,255,255,0.4)" },
+
+  // Post list (popular)
+  postsList: { marginHorizontal: 16, gap: 8 },
+  postRow: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    padding: 14,
+    gap: 8,
   },
-  postHeaderInfo: { flex: 1, marginLeft: 12 },
-  postUserName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-  postTime: {
-    fontSize: 12,
-    color: "#A9A9A9",
-    marginTop: 2,
-  },
-  postContent: {
-    fontSize: 15,
-    color: "#FFF",
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  stockBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(139, 92, 246, 0.2)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginBottom: 12,
+  postTagRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  catTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
     alignSelf: "flex-start",
   },
-  stockBadgeText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#8B5CF6",
-  },
-  stockBadgeName: {
-    fontSize: 12,
-    color: "#A9A9A9",
-    marginLeft: 8,
-    maxWidth: 120,
-  },
-  postActions: {
-    flexDirection: "row",
-    gap: 20,
-  },
-  actionBtn: {
+  catTagText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
+  pinnedBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 3,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.25)",
   },
-  actionText: {
-    fontSize: 14,
-    color: "#A9A9A9",
-  },
-  actionTextLiked: {
-    color: "#FF3B30",
-  },
-  commentsSection: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#2A2A2A",
-  },
-  collapseBtn: {
+  pinnedText: { fontSize: 11, color: "#F59E0B", fontWeight: "600" },
+  postRowTitle: { fontSize: 15, fontWeight: "600", color: "#FFF", lineHeight: 21 },
+  postRowFooter: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-    gap: 6,
-  },
-  collapseBtnText: {
-    fontSize: 13,
-    color: "#8B5CF6",
-    fontWeight: "500",
-  },
-  comment: {
-    marginBottom: 12,
-  },
-  commentUser: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-  commentContent: {
-    fontSize: 14,
-    color: "#A9A9A9",
+    justifyContent: "space-between",
     marginTop: 2,
   },
-  commentInputRow: {
+  postRowStats: { flexDirection: "row", alignItems: "center", gap: 4 },
+  postRowStatText: { fontSize: 13, color: "rgba(255,255,255,0.4)" },
+  postRowMeta: { fontSize: 12, color: "rgba(255,255,255,0.35)" },
+
+  // New post
+  newPostFab: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
+    alignSelf: "center",
+    gap: 8,
+    backgroundColor: PURPLE,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: 20,
   },
-  commentInput: {
-    flex: 1,
-    backgroundColor: "#2A2A2A",
+  newPostFabText: { fontSize: 14, fontWeight: "600", color: "#FFF" },
+  newPostForm: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 14,
+    gap: 10,
+  },
+  newPostTitleInput: {
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     color: "#FFF",
     fontSize: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  commentSend: {
-    padding: 10,
-    marginLeft: 8,
+  newPostBodyInput: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "#FFF",
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: "top",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  commentSendDisabled: {},
-  showComments: {
+  publishBtn: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
+    justifyContent: "center",
     gap: 6,
+    backgroundColor: PURPLE,
+    paddingVertical: 11,
+    borderRadius: 12,
   },
-  showCommentsText: {
+  publishBtnText: { fontSize: 14, fontWeight: "600", color: "#FFF" },
+
+  // ── Detail view ─────────────────────────────────────────────────────────────
+
+  detailCard: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 16,
+    gap: 12,
+  },
+  detailTitle: { fontSize: 18, fontWeight: "700", color: "#FFF", lineHeight: 26 },
+  stockChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+  },
+  stockChipLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  stockChipSymbol: { fontSize: 13, fontWeight: "700", color: "#FFF" },
+  stockChipName: { fontSize: 12, color: "rgba(255,255,255,0.45)" },
+  stockChipPrice: { fontSize: 13, fontWeight: "600", color: PURPLE },
+  detailMeta: { flexDirection: "row", alignItems: "center", gap: 14 },
+  detailMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  detailMetaText: { fontSize: 12, color: "rgba(255,255,255,0.45)" },
+  disclaimer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  disclaimerText: { fontSize: 11, color: "rgba(255,255,255,0.3)", flex: 1 },
+
+  // Comments list
+  commentsList: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    gap: 8,
+  },
+  commentCard: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    padding: 14,
+    gap: 10,
+  },
+  commentHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  commentHeaderInfo: { flex: 1 },
+  commentUserName: { fontSize: 14, fontWeight: "700", color: "#FFF" },
+  commentTime: { fontSize: 11, color: PURPLE, marginTop: 1 },
+  commentBody: { fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 20 },
+  commentActions: { flexDirection: "row", alignItems: "center", gap: 16 },
+  commentActionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
+  commentActionText: { fontSize: 13, color: "rgba(255,255,255,0.45)" },
+
+  // Reply bar
+  replyBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "#0A0A0F",
+  },
+  replyInput: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    color: "#FFF",
     fontSize: 14,
-    color: "#8B5CF6",
-    fontWeight: "500",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  bottomSpacer: { height: 40 },
+  replySend: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: PURPLE,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });

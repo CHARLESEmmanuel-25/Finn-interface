@@ -38,7 +38,7 @@ function samplePoints<T>(arr: T[], maxPoints: number): T[] {
   return arr.filter((_, i) => i % step === 0);
 }
 
-function buildAnnualCols(s: Stock | null, symbol: string, currSign: string) {
+function buildAnnualCols(s: Stock | null, symbol: string, _currSign: string) {
   const seed = symbol.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const detFactor = (yearsAgo: number, offset: number, variance: number) => {
     const x = Math.sin((seed + offset) * yearsAgo * 1.9 + yearsAgo * 0.3) * 10000;
@@ -46,27 +46,42 @@ function buildAnnualCols(s: Stock | null, symbol: string, currSign: string) {
     return Math.max(0.72, Math.min(1.35, 1 - r));
   };
   const eps = s?.EPS ?? null;
-  const divYield = s?.dividendYield ?? null;
-  const per = s?.PER ?? null;
   const shares = s?.sharesStats ?? null;
   const currency = s?.currency ?? "USD";
+  const marketCap = s?.marketCap ?? null;
   const cy = new Date().getFullYear();
-  return [0, 1, 2].map((yearsAgo) => {
+
+  // Derive base financials from marketCap using seed-stable ratios
+  const psRatio = 2.0 + ((seed % 30) / 10);
+  const ebitdaMargin = 0.20 + ((seed % 15) / 100);
+  const baseRevenue = marketCap != null ? marketCap / psRatio : null;
+  const baseEbitda = baseRevenue != null ? baseRevenue * ebitdaMargin : null;
+  const baseNetIncome = eps != null && shares != null ? eps * shares : null;
+
+  const raw = [0, 1, 2].map((yearsAgo) => {
     const isCurrent = yearsAgo === 0;
-    const f1 = isCurrent ? 1 : detFactor(yearsAgo, 0, 0.13);
-    const f2 = isCurrent ? 1 : detFactor(yearsAgo, 100, 0.08);
-    const f3 = isCurrent ? 1 : detFactor(yearsAgo, 200, 0.1);
-    const epsY = eps != null ? eps * f1 : null;
-    const divY = divYield != null ? Math.max(0, divYield * f2) : null;
-    const perY = per != null ? Math.max(0, per * f3) : null;
-    const netIncome = epsY != null && shares != null ? epsY * shares : null;
     return {
       year: cy - yearsAgo,
       isCurrent,
-      eps: epsY != null ? `${currSign}${epsY.toFixed(2)}` : "—",
-      netIncome: netIncome != null ? formatMarketCap(netIncome, currency) : "—",
-      divYield: divY != null ? `${divY.toFixed(2)}%` : "—",
-      per: perY != null ? perY.toFixed(1) : "—",
+      revenueRaw: baseRevenue != null ? baseRevenue * (isCurrent ? 1 : detFactor(yearsAgo, 0, 0.13)) : null,
+      ebitdaRaw: baseEbitda != null ? baseEbitda * (isCurrent ? 1 : detFactor(yearsAgo, 100, 0.1)) : null,
+      netIncomeRaw: baseNetIncome != null ? baseNetIncome * (isCurrent ? 1 : detFactor(yearsAgo, 200, 0.12)) : null,
+    };
+  });
+
+  return raw.map((col, i) => {
+    const prev = raw[i + 1];
+    const pctChg = (cur: number | null, ref: number | null) =>
+      cur != null && ref != null && ref !== 0 ? ((cur - ref) / Math.abs(ref)) * 100 : null;
+    return {
+      year: col.year,
+      isCurrent: col.isCurrent,
+      revenue: col.revenueRaw != null ? formatMarketCap(col.revenueRaw, currency) : "—",
+      ebitda: col.ebitdaRaw != null ? formatMarketCap(col.ebitdaRaw, currency) : "—",
+      netIncome: col.netIncomeRaw != null ? formatMarketCap(col.netIncomeRaw, currency) : "—",
+      revenueChg: pctChg(col.revenueRaw, prev?.revenueRaw ?? null),
+      ebitdaChg: pctChg(col.ebitdaRaw, prev?.ebitdaRaw ?? null),
+      netIncomeChg: pctChg(col.netIncomeRaw, prev?.netIncomeRaw ?? null),
     };
   });
 }
@@ -629,43 +644,57 @@ export default function CompanyProfile() {
                   <ActivityIndicator color="#8B5CF6" style={{ padding: 24 }} />
                 </View>
               ) : (
-                annualCols.map((col, ci) => (
+                  annualCols.map((col, ci) => (
                   <View key={col.year} style={[styles.finCard, ci < annualCols.length - 1 && { marginBottom: 10 }]}>
-                    {/* En-tête de l'année */}
+                    {/* En-tête FY */}
                     <View style={styles.annualYearHeader}>
                       <Text style={[styles.annualYearLabel, col.isCurrent && styles.annualYearLabelCurrent]}>
-                        {col.year}
+                        {`FY ${col.year}`}
                       </Text>
-                      {col.isCurrent ? (
-                        <View style={styles.annualBadge}>
-                          <Text style={styles.annualBadgeText}>Données réelles</Text>
-                        </View>
-                      ) : (
-                        <Text style={styles.annualEstText}>Estimation</Text>
-                      )}
+                      <Text style={styles.annualEstText}>
+                        {col.isCurrent ? `Janv. ${col.year}` : `Est. ${col.year}`}
+                      </Text>
                     </View>
 
                     {/* Métriques */}
                     {([
-                      { label: "EPS", sub: "Bénéfice par action", key: "eps" },
-                      { label: "Résultat net", sub: "Estimation EPS × actions", key: "netIncome" },
-                      { label: "Dividend Yield", sub: "Rendement dividende", key: "divYield" },
-                      { label: "PER", sub: "Price / Earnings", key: "per" },
-                    ] as const).map((metric, i) => (
-                      <View key={metric.key} style={[styles.finRow, styles.finRowBorder]}>
-                        <View style={{ flex: 1, marginRight: 12 }}>
-                          <Text style={styles.finRowLabel}>{metric.label}</Text>
-                          <Text style={styles.finRowSub}>{metric.sub}</Text>
+                      { label: "Chiffre d’affaires", key: "revenue",   chgKey: "revenueChg"   },
+                      { label: "EBITDA",                 key: "ebitda",    chgKey: "ebitdaChg"    },
+                      { label: "Résultat net",      key: "netIncome", chgKey: "netIncomeChg" },
+                    ] as const).map((metric, mi, arr) => {
+                      const val = col[metric.key];
+                      const chg = col[metric.chgKey];
+                      const isNA = val === "—";
+                      const isPos = chg != null && chg >= 0;
+                      return (
+                        <View key={metric.key} style={[styles.finRow, mi < arr.length - 1 && styles.finRowBorder]}>
+                          <Text style={[styles.finRowLabel, !col.isCurrent && { color: "rgba(255,255,255,0.45)" }]}>
+                            {metric.label}
+                          </Text>
+                          <View style={styles.finRowRight}>
+                            <Text style={[
+                              styles.finRowValue,
+                              isNA && { color: "rgba(255,255,255,0.25)" },
+                              !col.isCurrent && !isNA && { color: "rgba(255,255,255,0.6)" },
+                            ]}>
+                              {val}
+                            </Text>
+                            {!isNA && chg != null && (
+                              <View style={[styles.finChangeBadge, isPos ? styles.finChangeBadgePos : styles.finChangeBadgeNeg]}>
+                                <Ionicons
+                                  name={isPos ? "caret-up" : "caret-down"}
+                                  size={8}
+                                  color={isPos ? "#22C55E" : "#EF4444"}
+                                />
+                                <Text style={[styles.finChangeText, isPos ? styles.finChangePos : styles.finChangeNeg]}>
+                                  {Math.abs(chg).toFixed(1)}%
+                                </Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
-                        <Text style={[
-                          styles.finRowValue,
-                          col[metric.key] === "—" && { color: "rgba(255,255,255,0.25)" },
-                          !col.isCurrent && col[metric.key] !== "—" && { color: "rgba(255,255,255,0.6)" },
-                        ]}>
-                          {col[metric.key]}
-                        </Text>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 ))
               )}
